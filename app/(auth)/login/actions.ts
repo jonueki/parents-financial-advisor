@@ -1,13 +1,14 @@
 "use server";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { safeNext } from "@/lib/safe-next";
 
 export async function sendMagicLink(
   _prevState: { ok: boolean; message: string } | null,
   formData: FormData,
 ): Promise<{ ok: boolean; message: string }> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const next = String(formData.get("next") ?? "/");
+  const next = safeNext(formData.get("next"));
 
   if (!email || !email.includes("@")) {
     return { ok: false, message: "Enter a valid email address." };

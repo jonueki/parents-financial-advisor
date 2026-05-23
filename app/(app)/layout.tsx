@@ -16,6 +16,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // Proxy already handles unauthenticated redirects with ?next=; this
+    // branch is belt-and-suspenders for when middleware is bypassed (e.g.
+    // a request that didn't match the proxy matcher).
     redirect("/login");
   }
 

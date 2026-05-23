@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireAdminOrRedirect } from "@/lib/require-admin";
 
 type AuditRow = {
   id: string;
@@ -15,6 +16,7 @@ type AuditRow = {
 const PAGE_SIZE = 100;
 
 export default async function AuditTab() {
+  await requireAdminOrRedirect();
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("audit_log")

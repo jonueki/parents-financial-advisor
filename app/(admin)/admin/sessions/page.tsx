@@ -1,7 +1,11 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireAdminOrRedirect } from "@/lib/require-admin";
 import { revokeUserSessions } from "../actions";
 
+// TODO: paginate when user count grows beyond perPage. Phase 1 is fine
+// for ~10 households / ~30 users.
 export default async function SessionsTab() {
+  await requireAdminOrRedirect();
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.listUsers({ perPage: 200 });
 

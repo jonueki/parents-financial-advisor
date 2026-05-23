@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireAdminOrRedirect } from "@/lib/require-admin";
 import { removeMember } from "../actions";
 
 type MemberRow = {
@@ -16,6 +17,7 @@ type HouseholdRow = {
 };
 
 export default async function HouseholdsTab() {
+  await requireAdminOrRedirect();
   const admin = createSupabaseAdminClient();
   const { data: households, error } = await admin
     .from("households")

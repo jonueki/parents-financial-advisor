@@ -64,6 +64,28 @@ export async function removeMember(householdId: string, profileId: string) {
   await requireAdmin();
   const admin = createSupabaseAdminClient();
 
+  // Refuse to remove the last owner — would leave the household orphaned
+  // (no member can see it via RLS; only service-role can reach it).
+  const { data: target } = await admin
+    .from("household_members")
+    .select("role")
+    .eq("household_id", householdId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (target?.role === "owner") {
+    const { count } = await admin
+      .from("household_members")
+      .select("*", { count: "exact", head: true })
+      .eq("household_id", householdId)
+      .eq("role", "owner");
+    if ((count ?? 0) <= 1) {
+      throw new Error(
+        "Cannot remove the last owner. Promote another member to owner first or delete the household.",
+      );
+    }
+  }
+
   const { error } = await admin
     .from("household_members")
     .delete()

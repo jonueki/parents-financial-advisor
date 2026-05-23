@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { requireAdminOrRedirect } from "@/lib/require-admin";
 import { revokeInvite } from "../actions";
 
 type InviteRow = {
@@ -11,6 +12,7 @@ type InviteRow = {
 };
 
 export default async function InvitesTab() {
+  await requireAdminOrRedirect();
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("household_invites")

@@ -2,18 +2,31 @@
 
 import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 
+// Invite tokens are stored hashed (SHA-256). For this to be brute-resistant
+// the *raw* token must be ≥128 bits of CSPRNG (use crypto.randomBytes(32)
+// when the create-invite UI lands). The Postgres redeem_invite function is
+// the source of truth for race-safety, email binding, and role assignment.
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function redeemInvite(token: string) {
+type RedeemResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+export async function redeemInvite(formData: FormData): Promise<RedeemResult> {
+  const token = String(formData.get("token") ?? "").trim();
   if (!token) {
-    return { ok: false as const, message: "Missing invite token." };
+    return { ok: false, message: "Missing invite token." };
   }
 
+  // The user-session client (anon key + JWT cookie) calls the redeem_invite
+  // RPC. The function is SECURITY DEFINER but reads auth.uid() from the JWT
+  // GUC, so we cannot use the service-role client here — auth.uid() would
+  // be null and the function would reject.
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -22,46 +35,28 @@ export async function redeemInvite(token: string) {
     redirect(`/login?next=${encodeURIComponent(`/join?token=${token}`)}`);
   }
 
-  const admin = createSupabaseAdminClient();
   const tokenHash = hashToken(token);
 
-  const { data: invite, error: inviteErr } = await admin
-    .from("household_invites")
-    .select("id, household_id, expires_at, consumed_at")
-    .eq("token_hash", tokenHash)
-    .maybeSingle();
+  const { data, error } = await supabase
+    .rpc("redeem_invite", { p_token_hash: tokenHash })
+    .maybeSingle<{ household_id: string; role: string }>();
 
-  if (inviteErr || !invite) {
-    return { ok: false as const, message: "This invite link is not valid." };
+  if (error) {
+    return { ok: false, message: error.message };
   }
-  if (invite.consumed_at) {
-    return { ok: false as const, message: "This invite has already been used." };
+  if (!data) {
+    return {
+      ok: false,
+      message:
+        "This invite is not valid, has expired, has already been used, or was issued to a different email.",
+    };
   }
-  if (new Date(invite.expires_at) < new Date()) {
-    return { ok: false as const, message: "This invite has expired." };
-  }
-
-  const { error: insertErr } = await admin
-    .from("household_members")
-    .insert({
-      household_id: invite.household_id,
-      profile_id: user.id,
-      role: "owner",
-    });
-  if (insertErr && insertErr.code !== "23505") {
-    return { ok: false as const, message: insertErr.message };
-  }
-
-  await admin
-    .from("household_invites")
-    .update({ consumed_at: new Date().toISOString(), consumed_by: user.id })
-    .eq("id", invite.id);
 
   await logAudit({
     action: "invite_redeemed",
-    householdId: invite.household_id,
+    householdId: data.household_id,
     targetTable: "household_invites",
-    targetId: invite.id,
+    metadata: { role: data.role },
   });
 
   redirect("/");

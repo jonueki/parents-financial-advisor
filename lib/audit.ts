@@ -47,8 +47,12 @@ export async function logAudit(args: LogAuditArgs) {
   }
 
   const h = await headers();
-  const forwardedFor = h.get("x-forwarded-for");
-  const ipAddress = forwardedFor?.split(",")[0]?.trim() ?? null;
+  // x-vercel-forwarded-for is set by Vercel and not forwardable upstream;
+  // raw x-forwarded-for is appendable by clients and only used as a fallback
+  // for local dev. The audit IP is forensic-only, not a security signal.
+  const vercelIp = h.get("x-vercel-forwarded-for");
+  const fallbackIp = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ipAddress = vercelIp ?? fallbackIp;
   const userAgent = h.get("user-agent");
 
   await admin.from("audit_log").insert({

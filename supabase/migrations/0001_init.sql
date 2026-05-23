@@ -100,7 +100,9 @@ create trigger on_auth_user_created
 create table public.households (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
-  created_by  uuid not null references public.profiles(id),
+  -- on delete set null so deleting an auth.users row that ever created a
+  -- household preserves the household for surviving members.
+  created_by  uuid references public.profiles(id) on delete set null,
   created_at  timestamptz not null default now()
 );
 
@@ -109,7 +111,10 @@ create type public.household_role as enum ('owner', 'viewer', 'accountant');
 create table public.household_members (
   household_id  uuid not null references public.households(id) on delete cascade,
   profile_id    uuid not null references public.profiles(id) on delete cascade,
-  role          public.household_role not null default 'owner',
+  -- Default 'viewer' so omitting the role at insert is fail-safe; the
+  -- household creator gets 'owner' via the admin bootstrap flow, and
+  -- invite redemption reads the role from household_invites.role.
+  role          public.household_role not null default 'viewer',
   joined_at     timestamptz not null default now(),
   primary key (household_id, profile_id)
 );
@@ -125,11 +130,15 @@ create table public.household_invites (
   household_id  uuid not null references public.households(id) on delete cascade,
   token_hash    text not null unique,
   email         text,
-  created_by    uuid not null references public.profiles(id),
+  -- Role the redeemer receives. Stored on the invite so the inviter chooses
+  -- the privilege level. Default 'viewer' is fail-safe — owners require an
+  -- explicit pick.
+  role          public.household_role not null default 'viewer',
+  created_by    uuid references public.profiles(id) on delete set null,
   created_at    timestamptz not null default now(),
   expires_at    timestamptz not null,
   consumed_at   timestamptz,
-  consumed_by   uuid references public.profiles(id)
+  consumed_by   uuid references public.profiles(id) on delete set null
 );
 
 create index household_invites_household_idx
@@ -240,3 +249,86 @@ create policy "audit_log_admin_only"
   on public.audit_log for all
   using (public.is_admin())
   with check (public.is_admin());
+
+-- ---------------------------------------------------------------------------
+-- Column-level grants
+-- ---------------------------------------------------------------------------
+
+-- Belt + suspenders with profiles_update_self: even if the policy were to
+-- regress, the authenticated role only holds UPDATE on display_name. email
+-- is sourced from auth.users via the handle_new_user trigger and should
+-- never be writable by the user themselves (admin views display this
+-- column; user-controlled rewriting would let people impersonate others
+-- in admin UIs).
+revoke update on public.profiles from authenticated;
+grant update (display_name) on public.profiles to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Atomic invite redemption
+-- ---------------------------------------------------------------------------
+
+-- Single-statement claim + membership insert. Runs as definer so it
+-- bypasses the admin-only write policies on household_members. Identity
+-- (user id, user email) is read from auth.uid() / auth.users inside the
+-- function — never accepted as a parameter — so a caller cannot redeem
+-- on behalf of someone else.
+--
+-- Returns the (household_id, role) pair on success. Returns no rows when
+-- the invite is missing, expired, already consumed, or email-bound to a
+-- different address.
+--
+-- The atomic UPDATE ... WHERE consumed_at IS NULL is the race-free gate:
+-- only one concurrent caller can flip the row from null to a timestamp.
+create or replace function public.redeem_invite(p_token_hash text)
+returns table (household_id uuid, role public.household_role)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite     public.household_invites%rowtype;
+  v_user_id    uuid := auth.uid();
+  v_user_email text;
+begin
+  if v_user_id is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+
+  select email into v_user_email from auth.users where id = v_user_id;
+
+  select * into v_invite
+  from public.household_invites
+  where token_hash = p_token_hash;
+
+  if not found then
+    return;
+  end if;
+  if v_invite.email is not null
+     and lower(v_invite.email) <> lower(coalesce(v_user_email, '')) then
+    return;
+  end if;
+
+  update public.household_invites
+     set consumed_at = now(),
+         consumed_by = v_user_id
+   where id = v_invite.id
+     and consumed_at is null
+     and expires_at > now()
+  returning * into v_invite;
+
+  if not found then
+    return;
+  end if;
+
+  insert into public.household_members (household_id, profile_id, role)
+  values (v_invite.household_id, v_user_id, v_invite.role)
+  on conflict (household_id, profile_id) do nothing;
+
+  household_id := v_invite.household_id;
+  role := v_invite.role;
+  return next;
+end;
+$$;
+
+revoke all on function public.redeem_invite(text) from public;
+grant execute on function public.redeem_invite(text) to authenticated;

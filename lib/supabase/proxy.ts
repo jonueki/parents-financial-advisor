@@ -46,6 +46,8 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // pathname is always Next-canonicalized (starts with "/", no protocol),
+    // but pass through safeNext so the callback-side check is symmetric.
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
