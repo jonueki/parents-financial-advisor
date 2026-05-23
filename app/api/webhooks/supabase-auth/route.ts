@@ -59,7 +59,19 @@ export async function POST(request: NextRequest) {
   let canonicalEmail: string | null = null;
   if (payload.user?.id) {
     const admin = createSupabaseAdminClient();
-    const { data } = await admin.auth.admin.getUserById(payload.user.id);
+    const { data, error } = await admin.auth.admin.getUserById(payload.user.id);
+    if (error) {
+      // Transient lookup failure. Return 500 so Supabase retries the
+      // webhook rather than writing a misleading null-actor audit row.
+      console.error("supabase-auth webhook: actor lookup failed", {
+        userId: payload.user.id,
+        error: error.message,
+      });
+      return NextResponse.json({ ok: false, retry: true }, { status: 500 });
+    }
+    // If the user really doesn't exist in auth.users (deleted between
+    // event emission and our handler), legitimate null actor — fall
+    // through and write the row with no actor.
     if (data?.user) {
       canonicalId = data.user.id;
       canonicalEmail = data.user.email ?? null;

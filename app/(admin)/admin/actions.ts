@@ -64,34 +64,27 @@ export async function removeMember(householdId: string, profileId: string) {
   await requireAdmin();
   const admin = createSupabaseAdminClient();
 
-  // Refuse to remove the last owner — would leave the household orphaned
-  // (no member can see it via RLS; only service-role can reach it).
-  const { data: target } = await admin
-    .from("household_members")
-    .select("role")
-    .eq("household_id", householdId)
-    .eq("profile_id", profileId)
-    .maybeSingle();
+  // Atomic last-owner check + delete via remove_member RPC. Doing this in
+  // app code with a separate count + delete is TOCTOU-racy under concurrent
+  // admin actions (two admins remove two different owners of the same
+  // 2-owner household: both pass the count, both delete, household ends
+  // with zero owners).
+  const { error } = await admin
+    .rpc("remove_member", {
+      p_household_id: householdId,
+      p_profile_id: profileId,
+    });
 
-  if (target?.role === "owner") {
-    const { count } = await admin
-      .from("household_members")
-      .select("*", { count: "exact", head: true })
-      .eq("household_id", householdId)
-      .eq("role", "owner");
-    if ((count ?? 0) <= 1) {
+  if (error) {
+    // 23514 is the constraint-violation we raise for "would orphan
+    // the household." Surface a friendlier message.
+    if (error.code === "23514") {
       throw new Error(
         "Cannot remove the last owner. Promote another member to owner first or delete the household.",
       );
     }
+    throw error;
   }
-
-  const { error } = await admin
-    .from("household_members")
-    .delete()
-    .eq("household_id", householdId)
-    .eq("profile_id", profileId);
-  if (error) throw error;
 
   await logAudit({
     action: "member_removed",

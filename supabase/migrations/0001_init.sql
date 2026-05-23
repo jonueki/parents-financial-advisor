@@ -260,6 +260,14 @@ create policy "audit_log_admin_only"
 -- never be writable by the user themselves (admin views display this
 -- column; user-controlled rewriting would let people impersonate others
 -- in admin UIs).
+--
+-- Consequence: profiles_admin_write becomes unreachable from anon-key
+-- callers (the column grant denies non-display_name writes before RLS is
+-- consulted). This is intentional — every admin profile mutation in this
+-- codebase goes through createSupabaseAdminClient() (service-role), which
+-- bypasses both grants and RLS. Don't write admin profile mutations via
+-- the user-session client; use service-role inside a server action that
+-- calls requireAdminOrRedirect() / requireAdmin() first.
 revoke update on public.profiles from authenticated;
 grant update (display_name) on public.profiles to authenticated;
 
@@ -320,9 +328,14 @@ begin
     return;
   end if;
 
+  -- ON CONFLICT DO UPDATE: invite redemption is authoritative for role.
+  -- If the user was already a member of this household (e.g. admin added
+  -- them as 'viewer' before they redeemed an 'accountant' invite), the
+  -- redemption upgrades/changes their role to whatever the inviter chose.
   insert into public.household_members (household_id, profile_id, role)
   values (v_invite.household_id, v_user_id, v_invite.role)
-  on conflict (household_id, profile_id) do nothing;
+  on conflict (household_id, profile_id) do update
+    set role = excluded.role;
 
   household_id := v_invite.household_id;
   role := v_invite.role;
@@ -332,3 +345,69 @@ $$;
 
 revoke all on function public.redeem_invite(text) from public;
 grant execute on function public.redeem_invite(text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Atomic member removal
+-- ---------------------------------------------------------------------------
+
+-- Race-free version of "remove a member if doing so won't drop the household
+-- to zero owners." A check-then-delete in app code is vulnerable to two
+-- admins concurrently removing different owners — both pass the count
+-- check, both delete, household ends with zero owners. This function
+-- takes a row lock on every owner row before counting, so concurrent
+-- callers serialize.
+--
+-- Returns the number of rows actually deleted (0 if the target wasn't a
+-- member; 1 on success). Raises if the removal would drop owner count
+-- below 1.
+create or replace function public.remove_member(
+  p_household_id uuid,
+  p_profile_id   uuid
+) returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_target_role public.household_role;
+  v_owner_count integer;
+  v_deleted     integer;
+begin
+  -- Lock the target row first.
+  select role into v_target_role
+  from public.household_members
+  where household_id = p_household_id and profile_id = p_profile_id
+  for update;
+
+  if not found then
+    return 0;
+  end if;
+
+  if v_target_role = 'owner' then
+    -- Count other owners under a row lock so concurrent removals serialize.
+    select count(*) into v_owner_count
+    from public.household_members
+    where household_id = p_household_id
+      and role = 'owner'
+      and profile_id <> p_profile_id
+    for update;
+
+    if v_owner_count < 1 then
+      raise exception 'cannot remove last owner of household %', p_household_id
+        using errcode = '23514';
+    end if;
+  end if;
+
+  delete from public.household_members
+  where household_id = p_household_id and profile_id = p_profile_id;
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$$;
+
+-- This function is only called from server-side admin code (which already
+-- checks profiles.is_admin before calling). It still uses SECURITY DEFINER
+-- because household_members has admin-only RLS for writes, but the admin
+-- check belongs at the application boundary.
+revoke all on function public.remove_member(uuid, uuid) from public;
+grant execute on function public.remove_member(uuid, uuid) to service_role;
