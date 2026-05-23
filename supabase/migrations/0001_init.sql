@@ -261,13 +261,15 @@ create policy "audit_log_admin_only"
 -- column; user-controlled rewriting would let people impersonate others
 -- in admin UIs).
 --
--- Consequence: profiles_admin_write becomes unreachable from anon-key
--- callers (the column grant denies non-display_name writes before RLS is
--- consulted). This is intentional — every admin profile mutation in this
--- codebase goes through createSupabaseAdminClient() (service-role), which
--- bypasses both grants and RLS. Don't write admin profile mutations via
--- the user-session client; use service-role inside a server action that
--- calls requireAdminOrRedirect() / requireAdmin() first.
+-- Consequence: UPDATEs on non-display_name columns by anon-key callers
+-- are blocked at the grant layer before RLS is consulted, so the
+-- profiles_admin_write policy is effectively unreachable for UPDATE from
+-- the user-session client. INSERT and DELETE still go through the
+-- policy (the column grant only restricts UPDATE) — those paths are
+-- still RLS-protected. In practice every admin profile mutation in this
+-- codebase goes through createSupabaseAdminClient() (service-role),
+-- which bypasses both grants and RLS. Don't write admin profile
+-- UPDATEs via the user-session client.
 revoke update on public.profiles from authenticated;
 grant update (display_name) on public.profiles to authenticated;
 
@@ -370,7 +372,7 @@ set search_path = public
 as $$
 declare
   v_target_role public.household_role;
-  v_owner_count integer;
+  v_other_owner_count integer;
   v_deleted     integer;
 begin
   -- Lock the target row first.
@@ -384,15 +386,21 @@ begin
   end if;
 
   if v_target_role = 'owner' then
-    -- Count other owners under a row lock so concurrent removals serialize.
-    select count(*) into v_owner_count
-    from public.household_members
-    where household_id = p_household_id
-      and role = 'owner'
-      and profile_id <> p_profile_id
-    for update;
+    -- Lock every owner row for this household via CTE, then count over
+    -- the locked set. Postgres rejects FOR UPDATE alongside an aggregate
+    -- in the same statement, so the lock and the count live in separate
+    -- clauses of the same query.
+    with locked as (
+      select profile_id
+      from public.household_members
+      where household_id = p_household_id and role = 'owner'
+      for update
+    )
+    select count(*) into v_other_owner_count
+    from locked
+    where profile_id <> p_profile_id;
 
-    if v_owner_count < 1 then
+    if v_other_owner_count < 1 then
       raise exception 'cannot remove last owner of household %', p_household_id
         using errcode = '23514';
     end if;

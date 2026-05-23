@@ -83,7 +83,15 @@ export async function removeMember(householdId: string, profileId: string) {
         "Cannot remove the last owner. Promote another member to owner first or delete the household.",
       );
     }
-    throw error;
+    // Don't leak raw Postgres messages to the admin UI for unexpected
+    // errors — log internally, surface a generic message.
+    console.error("removeMember failed", {
+      householdId,
+      profileId,
+      code: error.code,
+      message: error.message,
+    });
+    throw new Error("Failed to remove member.");
   }
 
   await logAudit({
