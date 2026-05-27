@@ -337,7 +337,7 @@ Two short wizards, surfaced as dashboard banners when overdue:
 - **Update balances** (net worth) — one screen per account: *"Chase Checking: last $4,200 on Apr 15. Today?"* Writes `account_snapshots` + updates `accounts.current_balance_cents`.
 - **Update last month's spending** — one screen per category: *"Groceries — about how much in April?"* Writes `category_actuals`.
 
-**Overdue rule:** banners appear after the 7th of the current month. Balance banner shows when no `account_snapshots` row exists for any account dated this month. Spending banner shows when no `category_actuals` row exists for the previous (year, month).
+**Overdue rule:** banners appear after the 7th of the current month. Balance banner shows when any account has no `account_snapshots` row dated this month (so updating one of five accounts doesn't dismiss the banner — it stays until all are current). Spending banner shows when any active `budget_categories` row has no `category_actuals` row for the previous (year, month).
 
 Both are skippable per-step. Designed so a user who logs in after 2 months can catch up in 3 minutes.
 
