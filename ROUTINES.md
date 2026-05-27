@@ -15,7 +15,7 @@ user without stepping on them.
 | Routine | Trigger | What it does |
 |---|---|---|
 | **PM** | Monday 08:00 or manual `/fire` | Finds `needs-spec` issues, writes full specs, flips label to `ready-to-build` |
-| **Coder** | Issue labeled `ready-to-build` | Implements the spec, opens a PR labeled `needs-design-review` |
+| **Coder** | Issue labeled `ready-to-build` | Implements the spec, opens a PR labeled `needs-code-review` (and `needs-design-review` if UI/UX changes) |
 | **Designer** | PR labeled `needs-design-review` | Reviews UI/UX for older-user accessibility, posts inline comments |
 | **Reviewer** | PR labeled `needs-code-review` | Reviews for correctness and architecture, posts inline comments |
 | **Docs Writer** | PR merged to main | Updates HANDOFF.md, CHANGELOG.md, and inline docs |
@@ -33,7 +33,7 @@ unless you understand the downstream effect.
 | `needs-spec` | Idea exists, no spec yet | User or you | PM routine |
 | `ready-to-build` | Spec written, approved | PM routine | Coder routine |
 | `in-progress` | Coder is working on it | Coder routine | — (prevents double-pickup) |
-| `needs-design-review` | PR opened, needs UX review | Coder routine | Designer routine |
+| `needs-design-review` | PR opened, needs UX review | Coder routine or interactive Claude | Designer routine |
 | `needs-code-review` | PR opened, needs correctness/architecture review | Coder routine or interactive Claude | Reviewer routine |
 | `design-approved` | Designer signed off | Designer routine | User / Reviewer |
 
