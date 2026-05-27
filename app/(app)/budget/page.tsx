@@ -22,11 +22,15 @@ export default async function BudgetPage() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Resolve the user's household (first membership found).
+  // Resolve the user's household (earliest membership by join date for a
+  // stable pick for multi-household users).
+  // TODO: replace with a real household switcher once we support users in
+  // more than one household at once.
   const { data: membership } = await supabase
     .from("household_members")
     .select("household_id")
     .eq("profile_id", user.id)
+    .order("joined_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 

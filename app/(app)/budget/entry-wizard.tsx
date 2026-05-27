@@ -31,40 +31,42 @@ function formatDollars(cents: number): string {
   return "$" + Math.round(cents / 100).toLocaleString("en-US");
 }
 
+// Strict whole-dollar parser: rejects "$123abc" and other trailing junk
+// (which `parseInt` would silently truncate). The 999,999 cap is an
+// arbitrary v1 sanity bound to flag obviously-mistyped numbers.
 function parseDollarInput(raw: string): number | null {
   const cleaned = raw.replace(/[$,\s]/g, "");
   if (cleaned === "") return null;
+  if (!/^[0-9]+$/.test(cleaned)) return null;
   const n = parseInt(cleaned, 10);
-  if (isNaN(n) || n < 0 || n > 999999) return null;
+  if (!Number.isFinite(n) || n < 0 || n > 999999) return null;
   return n * 100;
 }
 
 function formatInputDisplay(raw: string): string {
   const cleaned = raw.replace(/[$,\s]/g, "");
   if (cleaned === "") return "";
+  if (!/^[0-9]+$/.test(cleaned)) return raw;
   const n = parseInt(cleaned, 10);
-  if (isNaN(n)) return raw;
+  if (!Number.isFinite(n)) return raw;
   return "$" + n.toLocaleString("en-US");
-}
-
-// Build list of selectable months: up to 12 past months, no future
-function buildMonthOptions(): { year: number; month: number; label: string }[] {
-  const now = new Date();
-  const options: { year: number; month: number; label: string }[] = [];
-  for (let i = 1; i <= 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    options.push({
-      year: d.getFullYear(),
-      month: d.getMonth() + 1,
-      label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`,
-    });
-  }
-  return options;
 }
 
 type StepValues = Record<string, string>; // categoryId -> raw input string | "skip"
 
 const SKIP = "__skip__";
+
+// Build initial StepValues by prefilling from existing actuals. Used as a
+// `useState` initializer so it runs once on mount instead of in an effect
+// that would clobber in-progress edits on every prop reference change.
+function buildInitialValues(existing: ExistingActual[]): StepValues {
+  const prefilled: StepValues = {};
+  for (const actual of existing) {
+    const dollars = Math.round(actual.amount_cents / 100);
+    prefilled[actual.category_id] = "$" + dollars.toLocaleString("en-US");
+  }
+  return prefilled;
+}
 
 export function EntryWizard({
   householdId,
@@ -76,31 +78,23 @@ export function EntryWizard({
   const [open, setOpen] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
 
-  const [selectedYear, setSelectedYear] = useState(defaultYear);
-  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  // The wizard is fixed to `defaultYear` / `defaultMonth` (which the page
+  // computes as last month per PLAN.md's "Update last month" framing).
+  // Editing a different month is a separate feature.
 
-  // step: 0 = month selector, 1..n = categories, n+1 = summary
-  const [step, setStep] = useState(0);
-  const [values, setValues] = useState<StepValues>({});
+  // step: 1..n = categories, n+1 = summary
+  const [step, setStep] = useState(1);
+  const [values, setValues] = useState<StepValues>(() =>
+    buildInitialValues(existingActuals),
+  );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const monthOptions = buildMonthOptions();
   const totalCategorySteps = categories.length;
   const summaryStep = totalCategorySteps + 1;
 
-  // Pre-populate from existing actuals when month selection changes
-  useEffect(() => {
-    const prefilled: StepValues = {};
-    for (const actual of existingActuals) {
-      const dollars = Math.round(actual.amount_cents / 100);
-      prefilled[actual.category_id] = "$" + dollars.toLocaleString("en-US");
-    }
-    setValues(prefilled);
-  }, [existingActuals]);
-
   const openWizard = () => {
-    setStep(0);
+    setStep(1);
     setSaveError(null);
     setOpen(true);
   };
@@ -108,7 +102,7 @@ export function EntryWizard({
   const tryClose = () => {
     // If user has entered anything, confirm before closing
     const hasEntries = Object.values(values).some((v) => v !== "" && v !== SKIP);
-    if (hasEntries && step > 0) {
+    if (hasEntries) {
       setConfirmClose(true);
     } else {
       closeWizard();
@@ -118,8 +112,8 @@ export function EntryWizard({
   const closeWizard = () => {
     setOpen(false);
     setConfirmClose(false);
-    setStep(0);
-    setValues({});
+    setStep(1);
+    setValues(buildInitialValues(existingActuals));
     setSaveError(null);
   };
 
@@ -140,8 +134,8 @@ export function EntryWizard({
     startTransition(async () => {
       const result = await saveCategoryActuals(
         householdId,
-        selectedYear,
-        selectedMonth,
+        defaultYear,
+        defaultMonth,
         entries,
       );
       if (result.ok) {
@@ -176,7 +170,7 @@ export function EntryWizard({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const monthLabel = `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
+  const monthLabel = `${MONTH_NAMES[defaultMonth - 1]} ${defaultYear}`;
 
   return (
     <>
@@ -212,48 +206,6 @@ export function EntryWizard({
           ].join(" ")}
         >
           <div className="flex flex-col gap-6 p-6">
-            {/* Step 0: Month selector */}
-            {step === 0 && (
-              <>
-                <h2 className="text-2xl font-semibold">Which month?</h2>
-                <p className="text-base text-neutral-600">
-                  Select the month you want to record spending for.
-                </p>
-                <select
-                  value={`${selectedYear}-${selectedMonth}`}
-                  onChange={(e) => {
-                    const [y, m] = e.target.value.split("-").map(Number);
-                    setSelectedYear(y);
-                    setSelectedMonth(m);
-                  }}
-                  className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-base"
-                  style={{ minHeight: 56 }}
-                >
-                  {monthOptions.map((o) => (
-                    <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="flex gap-3">
-                  <button
-                    onClick={tryClose}
-                    className="flex-1 rounded-lg border border-neutral-300 px-4 py-3 text-base font-medium text-neutral-700 hover:bg-neutral-50"
-                    style={{ minHeight: 56 }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => setStep(1)}
-                    className="flex-1 rounded-lg bg-blue-700 px-4 py-3 text-base font-semibold text-white hover:bg-blue-800"
-                    style={{ minHeight: 56 }}
-                  >
-                    Next
-                  </button>
-                </div>
-              </>
-            )}
-
             {/* Steps 1..n: one category per step */}
             {step >= 1 && step <= totalCategorySteps && (() => {
               const cat = categoryForStep(step)!;
@@ -268,9 +220,9 @@ export function EntryWizard({
                     <button
                       onClick={tryClose}
                       aria-label="Close wizard"
-                      className="rounded p-1 text-neutral-400 hover:text-neutral-700"
+                      className="rounded px-2 py-1 text-base text-neutral-600 hover:text-neutral-900"
                     >
-                      ✕
+                      ✕ Close
                     </button>
                   </div>
 
@@ -431,17 +383,24 @@ export function EntryWizard({
         </div>
       )}
 
-      {/* Confirm-close AlertDialog */}
+      {/* Confirm-close AlertDialog. Tailwind's z-index scale stops at z-50;
+          z-60/z-70 are not real classes, so we pin these above the wizard
+          (z-50) with inline styles. */}
       {confirmClose && (
         <>
-          <div className="fixed inset-0 z-60 bg-black/50" aria-hidden="true" />
+          <div
+            className="fixed inset-0 bg-black/50"
+            style={{ zIndex: 60 }}
+            aria-hidden="true"
+          />
           <div
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="confirm-title"
             aria-describedby="confirm-desc"
+            style={{ zIndex: 70 }}
             className={[
-              "fixed z-70 bg-white rounded-2xl shadow-xl p-6",
+              "fixed bg-white rounded-2xl shadow-xl p-6",
               "inset-x-4 top-1/2 -translate-y-1/2",
               "md:left-1/2 md:right-auto md:inset-x-auto md:-translate-x-1/2 md:w-full md:max-w-sm",
             ].join(" ")}
