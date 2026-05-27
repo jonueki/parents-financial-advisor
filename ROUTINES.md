@@ -17,7 +17,7 @@ user without stepping on them.
 | **PM** | Monday 08:00 or manual `/fire` | Finds `needs-spec` issues, writes full specs, flips label to `ready-to-build` |
 | **Coder** | Issue labeled `ready-to-build` | Implements the spec, opens a PR labeled `needs-design-review` |
 | **Designer** | PR labeled `needs-design-review` | Reviews UI/UX for older-user accessibility, posts inline comments |
-| **Reviewer** | PR opened | Reviews for correctness and architecture, posts inline comments |
+| **Reviewer** | PR labeled `needs-code-review` | Reviews for correctness and architecture, posts inline comments |
 | **Docs Writer** | PR merged to main | Updates HANDOFF.md, CHANGELOG.md, and inline docs |
 | **Release Notes** | GitHub release created | Rewrites the release body in plain language for non-technical readers |
 
@@ -34,6 +34,7 @@ unless you understand the downstream effect.
 | `ready-to-build` | Spec written, approved | PM routine | Coder routine |
 | `in-progress` | Coder is working on it | Coder routine | — (prevents double-pickup) |
 | `needs-design-review` | PR opened, needs UX review | Coder routine | Designer routine |
+| `needs-code-review` | PR opened, needs correctness/architecture review | Coder routine or interactive Claude | Reviewer routine |
 | `design-approved` | Designer signed off | Designer routine | User / Reviewer |
 
 ---
@@ -82,6 +83,19 @@ gh issue create \
 Body can be a one-liner or TBD — the PM routine fills it in. Do not write a full spec
 yourself unless the user asks you to skip the pipeline.
 
+### When you create PRs
+
+Apply the `needs-code-review` label on every PR you open so the Reviewer routine
+picks it up. The Coder routine does this automatically; interactive Claude sessions
+must do it explicitly:
+
+```bash
+gh pr create --title "..." --body "..." --label "needs-code-review"
+```
+
+If the PR also has UI/UX changes, add `needs-design-review` so the Designer routine
+picks it up too.
+
 ### What not to do
 
 - Do not remove `in-progress` from an issue unless you are certain the Coder routine
@@ -110,6 +124,12 @@ gh issue edit <number> --add-label "ready-to-build"
 ```bash
 gh pr edit <number> --remove-label "needs-design-review"
 gh pr edit <number> --add-label "needs-design-review"
+```
+
+**Reviewer routine** — remove and re-add `needs-code-review` on the target PR:
+```bash
+gh pr edit <number> --remove-label "needs-code-review"
+gh pr edit <number> --add-label "needs-code-review"
 ```
 
 **Docs Writer / Release Notes** — these fire on merge and release events.
