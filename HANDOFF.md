@@ -75,6 +75,8 @@ lib/supabase/server.ts                        — createSupabaseServerClient (ge
 lib/supabase/client.ts                        — createBrowserClient
 lib/supabase/proxy.ts                         — updateSession() helper for proxy.ts
 lib/audit.ts                                  — logAudit() helper
+lib/require-admin.ts                          — requireAdminOrRedirect() defense-in-depth check for /admin/* pages
+lib/safe-next.ts                              — allowlist-based open-redirect guard for user-controlled `next` params
 
 app/layout.tsx                                — root (Geist fonts, base 18px)
 app/globals.css                               — base font-size + tap-target minimum
@@ -90,8 +92,9 @@ app/(app)/budget/page.tsx                     — Phase 2 stub
 app/(app)/goals/page.tsx                      — Phase 2 stub
 app/(app)/net-worth/page.tsx                  — Phase 2 stub
 app/(app)/settings/page.tsx                   — shows email + sign-out form
-app/(app)/join/page.tsx                       — invite redemption (server-side)
-app/(app)/join/actions.ts                     — redeemInvite (single-use, service-role insert)
+app/(app)/join/page.tsx                       — invite redemption confirmation page (GET shows confirm UI, POST redeems)
+app/(app)/join/join-form.tsx                  — client confirmation form; prevents prefetchers/scanners from burning tokens
+app/(app)/join/actions.ts                     — redeemInvite (atomic SECURITY DEFINER RPC, email-bound, role from invite row)
 
 app/(admin)/admin/layout.tsx                  — is_admin gate + tab nav
 app/(admin)/admin/page.tsx                    — redirect("/admin/households")
@@ -164,3 +167,9 @@ Once those are settled, Phase 2 ships these files (per the plan):
 - **`(app)` group has no `page.tsx`.** The root `app/page.tsx` redirects to `/budget` inside the group. If you ever add `app/(app)/page.tsx` it'll conflict with the root.
 - **`npm run build` triggers a fetch error during page-data collection** when env vars point at a non-existent Supabase host. This doesn't fail the build — all routes get marked ƒ (dynamic) because they `cookies()`. With real env vars in prod, no error.
 - **Project `.npmrc`** pins this directory to the public npmjs.org registry. Original session's machine had a corporate registry global config that broke installs; the project-level override insulates this repo.
+- **`safeNext()` uses an allowlist, not a denylist.** Denylist-based open-redirect guards are bypassable via encoding variants (`/%2f%2fevil`, CR/LF injection). The allowlist regex `^\/[A-Za-z0-9._~\-/]*` rejects everything that isn't an unambiguous same-origin path. Applied at `/auth/callback`, login action, and the proxy redirect chain.
+- **Invite redemption and member removal are atomic `SECURITY DEFINER` RPCs.** `redeem_invite()` and `remove_member()` run as Postgres functions that call `auth.uid()` internally — callers can't spoof identity by passing a uid as a parameter. Locking ensures single-use (invite) and last-owner safety (member removal) without TOCTOU races.
+- **`/join` is a confirmation page + POST, not mutate-on-GET.** Email link-scanners and chat-app unfurlers issue GET requests and would silently burn single-use tokens. The GET renders a confirm button; the server action only fires on POST.
+- **`requireAdminOrRedirect()` is called at the top of every `/admin/*` page,** not just the layout. Defense in depth: a layout regression shouldn't silently expose admin data.
+- **Supabase auth webhook distinguishes 404 from 5xx on `getUserById`.** A 404 means the user was deleted between the event and the handler — fall through to a null-actor audit row. Any other error returns 500 so Supabase retries rather than writing a misleading null-actor row for a transient failure.
+- **`remove_member` SQL: lock rows in a CTE, then aggregate.** `SELECT count(*) ... FOR UPDATE` is a Postgres error — locking clauses can't combine with aggregates. The pattern is: CTE locks owner rows with `FOR UPDATE`, outer query counts over the locked CTE result.
