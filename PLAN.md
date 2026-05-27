@@ -243,7 +243,7 @@ All money stored as `_cents` integers (always positive; sign is conveyed by whic
 
 **Domain — assets & liabilities**
 
-- `accounts` — `household_id`, `name`, `type` (enum: `checking` / `savings` / `investment` / `retirement` / `credit_card` / `mortgage` / `loan` / `other`), `is_liability` boolean, `current_balance_cents`. **Contract: `current_balance_cents` is a denormalized mirror of the most recent `account_snapshots.balance_cents` for that account. Maintained by the same server action that inserts a snapshot — never written independently.** For liabilities the balance is stored as a positive number; net worth math is `SUM(assets) − SUM(liabilities)`. `is_liability` is the source of truth (rather than inferring from `type`) so the `other` type can be either.
+- `accounts` — `household_id`, `name`, `type` (enum: `checking` / `savings` / `investment` / `retirement` / `credit_card` / `mortgage` / `loan` / `other`), `is_liability` boolean, `current_balance_cents`. **Contract: `current_balance_cents` is a denormalized mirror of the snapshot with the largest `snapshot_date` for that account (backdated catch-up entries do not overwrite a more-recent mirror; if two snapshots share a date, the later-inserted one wins via the unique `(account_id, snapshot_date)` constraint). Maintained by the same server action that inserts a snapshot — never written independently.** For liabilities the balance is stored as a positive number; net worth math is `SUM(assets) − SUM(liabilities)`. `is_liability` is the source of truth (rather than inferring from `type`) so the `other` type can be either.
 - `account_snapshots` — `account_id`, `balance_cents`, `snapshot_date`. Unique on `(account_id, snapshot_date)`. Multiple snapshots per month are allowed (catch-up entries).
 - **Account creation rule:** the onboarding "Add accounts" step and the Settings "Add account" form both call a single server action that inserts the `accounts` row and the initial `account_snapshots` row (dated today) atomically. There is no path to create an account without a snapshot.
 
@@ -276,9 +276,9 @@ Status: 🔒 LOCKED
 1. Scaffold: `pnpm create next-app`, Tailwind, shadcn init, env vars.
 2. Supabase project + Brevo SMTP wired up (operational steps).
 3. Migration `0001_init.sql`: identity + access + audit tables (`profiles`, `households`, `household_members`, `household_invites`, `audit_log`). RLS policies on all of them.
-4. `@supabase/ssr` clients (`lib/supabase/{server,client,middleware}.ts`) + root `middleware.ts` (refresh-token rotation + auth gate).
+4. `@supabase/ssr` clients (`lib/supabase/{server,client,proxy}.ts`) + root `proxy.ts` (refresh-token rotation + auth gate).
 5. `/login` magic link + `/auth/callback` route.
-6. `/api/webhooks/supabase-auth` writing sign-in / sign-out rows to `audit_log`.
+6. `/auth/callback` writing sign-in row to `audit_log` inline (no Supabase webhook for sign-in).
 7. `/join?token=…` invite redemption.
 8. `lib/audit.ts` helper.
 9. `/admin` dashboard skeleton (households / sessions / invites / audit tabs) using service-role server actions.
@@ -321,7 +321,7 @@ Status: 🔒 LOCKED
 Linear stepper, finishable in <5 minutes, can't be skipped on first visit:
 
 1. **Welcome** — one paragraph in plain language.
-2. **Name your household** — text input. Server action creates the `households` row, adds the user to `household_members` as `owner`, and seeds default categories via `seed_default_categories(household_id)`.
+2. **Name your household** — text input. Server action creates the `households` row, adds the user to `household_members` as `owner`, and seeds default categories via `seed_default_categories(household_id)`. (Server action uses the service-role client — `household_members` write policy is admin-only by design; action validates `auth.uid()` matches the caller before inserting.)
 3. **Add your accounts** — repeat-add UI for accounts + current balance. "Skip for now" allowed.
 4. **Review default categories** — show seeded list with current monthly budget defaults, let them edit numbers or remove rows. "Looks good" continues.
 5. **Add a goal** (optional) — "Anything big coming up? Trip, car, repair?" Single-row form.
@@ -337,7 +337,7 @@ Two short wizards, surfaced as dashboard banners when overdue:
 - **Update balances** (net worth) — one screen per account: *"Chase Checking: last $4,200 on Apr 15. Today?"* Writes `account_snapshots` + updates `accounts.current_balance_cents`.
 - **Update last month's spending** — one screen per category: *"Groceries — about how much in April?"* Writes `category_actuals`.
 
-**Overdue rule:** banners appear after the 7th of the current month. Balance banner shows when any account has no `account_snapshots` row dated this month (so updating one of five accounts doesn't dismiss the banner — it stays until all are current). Spending banner shows when any active `budget_categories` row has no `category_actuals` row for the previous (year, month).
+**Overdue rule:** banners appear after the 7th of the current month. Balance banner shows when any account has no `account_snapshots` row dated this month (so updating one of five accounts doesn't dismiss the banner — it stays until all are current). Spending banner shows when any `budget_categories` row has no `category_actuals` row for the previous (year, month). Note: if `budget_categories` ends up soft-deleteable (pending Phase 2 decision in HANDOFF.md), this rule will need to scope to categories that were active during the period in question, not the current date.
 
 Both are skippable per-step. Designed so a user who logs in after 2 months can catch up in 3 minutes.
 
@@ -349,8 +349,8 @@ Status: 🔒 LOCKED
 1. `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`, `postcss.config.js` — scaffold via `pnpm dlx create-next-app`.
 2. `supabase/migrations/0001_init.sql` — identity + access + audit schema, RLS policies. Foundation; built and tested before any UI.
 3. `supabase/migrations/0002_domain.sql` — domain tables (accounts, snapshots, categories, actuals, income, goals), `seed_default_categories(household_id)` function, RLS policies.
-4. `lib/supabase/{server,client,middleware}.ts` — `@supabase/ssr` clients.
-5. `middleware.ts` — refresh-token rotation + auth gate.
+4. `lib/supabase/{server,client,proxy}.ts` — `@supabase/ssr` clients.
+5. `proxy.ts` — refresh-token rotation + auth gate.
 6. `app/(auth)/login/page.tsx` + `app/auth/callback/route.ts` — magic-link flow.
 7. `app/api/heartbeat/route.ts` + `vercel.json` — DB-pause prevention cron.
 8. `app/globals.css` + `tailwind.config.ts` — theme overrides (font sizes, contrast, hit targets).
@@ -362,7 +362,7 @@ Status: 🔒 LOCKED
     - `app/(app)/net-worth` — chart + "Update balances" wizard.
     - `app/(app)/settings` — household name, accounts, categories CRUD, **invite members**, leave-household.
 12. `app/(app)/join/page.tsx` — invite-token redemption.
-13. `app/api/webhooks/supabase-auth/route.ts` — receives Supabase Auth webhook, writes `audit_log` rows for sign-in / sign-out events.
+13. `app/api/webhooks/supabase-auth/route.ts` — receives Supabase Auth webhook for future events (e.g., user deletion); stub in v1. Sign-in/out audit is logged inline in `/auth/callback` and the sign-out route.
 14. `lib/audit.ts` — `logAudit({ action, householdId?, targetTable?, targetId?, metadata })` helper used by every mutation server action.
 15. `app/(admin)/admin/{households,sessions,invites,audit}/page.tsx` — admin dashboard tabs.
 16. `app/(admin)/admin/actions.ts` — server actions for revoke-session, revoke-invite, remove-member, all writing audit rows.
@@ -380,7 +380,7 @@ Status: 🔒 LOCKED
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY` (server-only).
 - After first login as yourself, manually flip `is_admin = true` on your `profiles` row via Supabase SQL editor.
-- In Supabase Auth → Webhooks, point `auth.user.signed_in` (and `signed_out`) at `https://<app>/api/webhooks/supabase-auth`.
+- In Supabase Auth → Webhooks, point future events (e.g., `auth.user.deleted`) at `https://<app>/api/webhooks/supabase-auth` if/when needed. Sign-in/out audit is logged inline in `/auth/callback` and the sign-out route — no webhook required for those.
 - From `/admin`, create the two households and send invite links to each parent/in-law's email.
 
 ## Verification
