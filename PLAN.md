@@ -16,7 +16,7 @@ Workflow I recommend for the rest of planning:
 This keeps each round small and your input cheap.
 
 ## Context
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 A web app for two retirement-age households (parents + in-laws) to do **high-level** budgeting and planning. The user is the developer + admin. Real users will probably log in **once every 1–2 months** to answer questions like *"can we afford the Japan trip?"* or *"how are we doing this year?"* Not a transaction tracker — a planning tool.
 
@@ -226,7 +226,7 @@ Gotchas baked into the migration:
 - A second Playwright test confirms an `owner` cannot read `/admin/*`.
 
 ## Data model
-Status: 🟡 DRAFT — identity/access subsection is locked; domain subsection still open to revision.
+Status: 🔒 LOCKED
 
 All money stored as `_cents` integers (always positive; sign is conveyed by which table the row lives in, not by the value).
 
@@ -243,12 +243,13 @@ All money stored as `_cents` integers (always positive; sign is conveyed by whic
 
 **Domain — assets & liabilities**
 
-- `accounts` — `household_id`, `name`, `type` (enum: `checking` / `savings` / `investment` / `retirement` / `credit_card` / `mortgage` / `loan` / `other`), `is_liability` boolean, `current_balance_cents`. For liabilities the balance is stored as a positive number; net worth math is `SUM(assets) − SUM(liabilities)`. `is_liability` is the source of truth (rather than inferring from `type`) so the `other` type can be either.
-- `account_snapshots` — `account_id`, `balance_cents`, `snapshot_date`. Unique on `(account_id, snapshot_date)`.
+- `accounts` — `household_id`, `name`, `type` (enum: `checking` / `savings` / `investment` / `retirement` / `credit_card` / `mortgage` / `loan` / `other`), `is_liability` boolean, `current_balance_cents`. **Contract: `current_balance_cents` is a denormalized mirror of the snapshot with the largest `snapshot_date` for that account (backdated catch-up entries do not overwrite a more-recent mirror; if two snapshots share a date, the later-inserted one wins via the unique `(account_id, snapshot_date)` constraint). Maintained by the same server action that inserts a snapshot — never written independently.** For liabilities the balance is stored as a positive number; net worth math is `SUM(assets) − SUM(liabilities)`. `is_liability` is the source of truth (rather than inferring from `type`) so the `other` type can be either.
+- `account_snapshots` — `account_id`, `balance_cents`, `snapshot_date`. Unique on `(account_id, snapshot_date)`. Multiple snapshots per month are allowed (catch-up entries).
+- **Account creation rule:** the onboarding "Add accounts" step and the Settings "Add account" form both call a single server action that inserts the `accounts` row and the initial `account_snapshots` row (dated today) atomically. There is no path to create an account without a snapshot.
 
 **Domain — budgeting (expenses)**
 
-- `budget_categories` — `household_id`, `name`, `monthly_budget_cents` (nullable), `annual_budget_cents` (nullable). Expense categories only. Seeded with ~10 defaults (Groceries, Utilities, Housing, Transport, Healthcare, Insurance, Dining, Entertainment, Gifts, Misc).
+- `budget_categories` — `household_id`, `name`, `monthly_budget_cents` (nullable), `annual_budget_cents` (nullable). Expense categories only. Seeded with ~10 defaults (Groceries, Utilities, Housing, Transport, Healthcare, Insurance, Dining, Entertainment, Gifts, Misc) by SQL function `seed_default_categories(household_id uuid)` defined in `0002_domain.sql`. Invoked from the onboarding server action immediately after the `households` row is created. Same function is callable from `/admin` for repair.
 - `category_actuals` — `household_id`, `category_id`, `year`, `month` (1–12), `amount_cents`. One row per category per month. Unique on `(category_id, year, month)`.
 
 **Domain — budgeting (income)**
@@ -262,22 +263,22 @@ All money stored as `_cents` integers (always positive; sign is conveyed by whic
 
 **Derived numbers**
 
-- Net worth = `SUM(accounts.current_balance_cents) WHERE is_liability=false` − `SUM(accounts.current_balance_cents) WHERE is_liability=true`, taken from the latest snapshot per account.
+- Net worth = `SUM(accounts.current_balance_cents) WHERE is_liability=false` − `SUM(accounts.current_balance_cents) WHERE is_liability=true`. (No window function needed at read time — the mirror column is the cache.)
 - Monthly cash flow = `SUM(income_actuals) − SUM(category_actuals)` for a given (year, month).
 - Annual cash flow = same, rolled up to year.
 - Budget vs actual = compare `category_actuals` to `budget_categories.monthly_budget_cents` / `annual_budget_cents`.
 
 ## Implementation phasing
-Status: 🟡 DRAFT — proposed split so foundation work can start in parallel with finalizing domain UI.
+Status: 🔒 LOCKED
 
 **Phase 1 — Foundation (ready to build; depends only on LOCKED sections).** No UI flows that touch budgeting/goals yet; this gets identity, multi-tenant safety, and the deploy pipeline solid before we paint anything.
 
 1. Scaffold: `pnpm create next-app`, Tailwind, shadcn init, env vars.
 2. Supabase project + Brevo SMTP wired up (operational steps).
 3. Migration `0001_init.sql`: identity + access + audit tables (`profiles`, `households`, `household_members`, `household_invites`, `audit_log`). RLS policies on all of them.
-4. `@supabase/ssr` clients (`lib/supabase/{server,client,middleware}.ts`) + root `middleware.ts` (refresh-token rotation + auth gate).
+4. `@supabase/ssr` clients (`lib/supabase/{server,client,proxy}.ts`) + root `proxy.ts` (refresh-token rotation + auth gate).
 5. `/login` magic link + `/auth/callback` route.
-6. `/api/webhooks/supabase-auth` writing sign-in / sign-out rows to `audit_log`.
+6. `/auth/callback` writing sign-in row to `audit_log` inline (no Supabase webhook for sign-in).
 7. `/join?token=…` invite redemption.
 8. `lib/audit.ts` helper.
 9. `/admin` dashboard skeleton (households / sessions / invites / audit tabs) using service-role server actions.
@@ -297,13 +298,13 @@ Phase 1 deliverable: you and one family member can each sign in, you can see the
 We can iterate on the domain schema while Phase 1 ships. Anything that lands in Phase 1 has zero dependency on which way the budgeting tables ultimately shake out.
 
 ## Hosting gotchas
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 - **Supabase free pauses after 7 days of zero DB activity.** First request after pause = 30–60s cold error. Fix: `app/api/heartbeat/route.ts` runs `SELECT 1`; Vercel Cron hits it daily at 09:00 UTC. Hobby cron is **daily-frequency only** — "every 3 days" is not a valid Hobby schedule, so we just do daily.
 - **Vercel Hobby = personal use only.** Helping family qualifies. Noted.
 
 ## UI — older-user rules
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 - Base font **18–20px**. Buttons min **56px tall**.
 - WCAG AAA contrast (7:1).
@@ -315,12 +316,12 @@ Status: 🟡 DRAFT
 - One primary (blue) action per screen.
 
 ## First-run guided setup
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 Linear stepper, finishable in <5 minutes, can't be skipped on first visit:
 
 1. **Welcome** — one paragraph in plain language.
-2. **Name your household** — text input.
+2. **Name your household** — text input. Server action creates the `households` row, adds the user to `household_members` as `owner`, and seeds default categories via `seed_default_categories(household_id)`. (Server action uses the service-role client — `household_members` write policy is admin-only by design; action validates `auth.uid()` matches the caller before inserting.)
 3. **Add your accounts** — repeat-add UI for accounts + current balance. "Skip for now" allowed.
 4. **Review default categories** — show seeded list with current monthly budget defaults, let them edit numbers or remove rows. "Looks good" continues.
 5. **Add a goal** (optional) — "Anything big coming up? Trip, car, repair?" Single-row form.
@@ -329,43 +330,46 @@ Linear stepper, finishable in <5 minutes, can't be skipped on first visit:
 After first run, returning users always land on Budget. The wizard re-appears only if `accounts` is empty.
 
 ## Monthly "Update" pattern
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 Two short wizards, surfaced as dashboard banners when overdue:
 
 - **Update balances** (net worth) — one screen per account: *"Chase Checking: last $4,200 on Apr 15. Today?"* Writes `account_snapshots` + updates `accounts.current_balance_cents`.
 - **Update last month's spending** — one screen per category: *"Groceries — about how much in April?"* Writes `category_actuals`.
 
+**Overdue rule:** banners appear after the 7th of the current month. Balance banner shows when any account has no `account_snapshots` row dated this month (so updating one of five accounts doesn't dismiss the banner — it stays until all are current). Spending banner shows when any `budget_categories` row has no `category_actuals` row for the previous (year, month). Note: if `budget_categories` ends up soft-deleteable (pending Phase 2 decision in HANDOFF.md), this rule will need to scope to categories that were active during the period in question, not the current date.
+
 Both are skippable per-step. Designed so a user who logs in after 2 months can catch up in 3 minutes.
 
 No email reminders. They'll come back when they need the app.
 
 ## Files to create (in order)
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 1. `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts`, `postcss.config.js` — scaffold via `pnpm dlx create-next-app`.
-2. `supabase/migrations/0001_init.sql` — schema, seed-categories function, RLS policies. Foundation; built and tested before any UI.
-3. `lib/supabase/{server,client,middleware}.ts` — `@supabase/ssr` clients.
-4. `middleware.ts` — refresh-token rotation + auth gate.
-5. `app/(auth)/login/page.tsx` + `app/auth/callback/route.ts` — magic-link flow.
-6. `app/api/heartbeat/route.ts` + `vercel.json` — DB-pause prevention cron.
-7. `app/globals.css` + `tailwind.config.ts` — theme overrides (font sizes, contrast, hit targets).
-8. `app/(app)/layout.tsx` — bottom tab bar shell.
-9. `app/(app)/onboarding/page.tsx` — first-run stepper.
-10. Feature pages (each with colocated `actions.ts`):
+2. `supabase/migrations/0001_init.sql` — identity + access + audit schema, RLS policies. Foundation; built and tested before any UI.
+3. `supabase/migrations/0002_domain.sql` — domain tables (accounts, snapshots, categories, actuals, income, goals), `seed_default_categories(household_id)` function, RLS policies.
+4. `lib/supabase/{server,client,proxy}.ts` — `@supabase/ssr` clients.
+5. `proxy.ts` — refresh-token rotation + auth gate.
+6. `app/(auth)/login/page.tsx` + `app/auth/callback/route.ts` — magic-link flow.
+7. `app/api/heartbeat/route.ts` + `vercel.json` — DB-pause prevention cron.
+8. `app/globals.css` + `tailwind.config.ts` — theme overrides (font sizes, contrast, hit targets).
+9. `app/(app)/layout.tsx` — bottom tab bar shell.
+10. `app/(app)/onboarding/page.tsx` + `app/(app)/onboarding/actions.ts` — first-run stepper; actions file handles household creation + seed-categories + atomic account-plus-initial-snapshot creation.
+11. Feature pages (each with colocated `actions.ts`):
     - `app/(app)/budget` — current month + annual rollup + "Update last month" wizard.
     - `app/(app)/goals` — list + create/edit big-ticket goals.
     - `app/(app)/net-worth` — chart + "Update balances" wizard.
     - `app/(app)/settings` — household name, accounts, categories CRUD, **invite members**, leave-household.
-11. `app/(app)/join/page.tsx` — invite-token redemption.
-12. `app/api/webhooks/supabase-auth/route.ts` — receives Supabase Auth webhook, writes `audit_log` rows for sign-in / sign-out events.
-13. `lib/audit.ts` — `logAudit({ action, householdId?, targetTable?, targetId?, metadata })` helper used by every mutation server action.
-14. `app/(admin)/admin/{households,sessions,invites,audit}/page.tsx` — admin dashboard tabs.
-15. `app/(admin)/admin/actions.ts` — server actions for revoke-session, revoke-invite, remove-member, all writing audit rows.
-16. `tests/rls.spec.ts` — Playwright cross-household isolation + admin-route gating tests.
+12. `app/(app)/join/page.tsx` — invite-token redemption.
+13. `app/api/webhooks/supabase-auth/route.ts` — receives Supabase Auth webhook for future events (e.g., user deletion); stub in v1. Sign-in/out audit is logged inline in `/auth/callback` and the sign-out route.
+14. `lib/audit.ts` — `logAudit({ action, householdId?, targetTable?, targetId?, metadata })` helper used by every mutation server action.
+15. `app/(admin)/admin/{households,sessions,invites,audit}/page.tsx` — admin dashboard tabs.
+16. `app/(admin)/admin/actions.ts` — server actions for revoke-session, revoke-invite, remove-member, all writing audit rows.
+17. `tests/rls.spec.ts` — Playwright cross-household isolation + admin-route gating tests.
 
 ## Operational setup (outside the repo)
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 - Create Supabase project (free tier, US region).
 - Create Brevo account, generate SMTP creds, paste into Supabase Auth → SMTP settings.
@@ -376,11 +380,11 @@ Status: 🟡 DRAFT
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY` (server-only).
 - After first login as yourself, manually flip `is_admin = true` on your `profiles` row via Supabase SQL editor.
-- In Supabase Auth → Webhooks, point `auth.user.signed_in` (and `signed_out`) at `https://<app>/api/webhooks/supabase-auth`.
+- In Supabase Auth → Webhooks, point future events (e.g., `auth.user.deleted`) at `https://<app>/api/webhooks/supabase-auth` if/when needed. Sign-in/out audit is logged inline in `/auth/callback` and the sign-out route — no webhook required for those.
 - From `/admin`, create the two households and send invite links to each parent/in-law's email.
 
 ## Verification
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 End-to-end smoke test before sharing the URL:
 
@@ -390,13 +394,13 @@ End-to-end smoke test before sharing the URL:
 4. Populate a few months of `category_actuals`, a goal, a couple of account snapshots; confirm budget rollups and net-worth chart are correct.
 5. Switch to admin user; confirm visibility into both households, ability to revoke a session, and that the audit log shows sign-in + the revocation event.
 6. Invite a second user into a household via the link, confirm membership lands correctly and they cannot see the other household.
-6. Walk through both monthly "Update" wizards.
-7. Deploy to Vercel preview; verify magic-link emails arrive via Brevo (check spam folder, tune From-name and reply-to).
-8. Test on a real phone: tap targets right, fonts readable at arm's length.
-9. After 24h, confirm Vercel Cron heartbeat fired (Vercel logs) and Supabase logged the `SELECT 1`.
+7. Walk through both monthly "Update" wizards.
+8. Deploy to Vercel preview; verify magic-link emails arrive via Brevo (check spam folder, tune From-name and reply-to).
+9. Test on a real phone: tap targets right, fonts readable at arm's length.
+10. After 24h, confirm Vercel Cron heartbeat fired (Vercel logs) and Supabase logged the `SELECT 1`.
 
 ## Out of scope for v1
-Status: 🟡 DRAFT
+Status: 🔒 LOCKED
 
 - Per-transaction tracking.
 - Bank sync (Plaid/Teller).
