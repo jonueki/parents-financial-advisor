@@ -1,0 +1,21 @@
+# Next.js
+.next/
+out/
+
+# dependencies
+node_modules/
+.pnpm-store/
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# build
+tsconfig.tsbuildinfo
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+pnpm-debug.log*
