@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Parents Financial Advisor — v1 Plan</title>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+</script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1c1c1c;
+    --muted: #5a5a5a;
+    --border: #e5e5e5;
+    --code-bg: #f5f5f5;
+    --accent: #1d4ed8;
+    --locked: #166534;
+    --locked-bg: #dcfce7;
+    --draft: #92400e;
+    --draft-bg: #fef3c7;
+    --revise: #9a3412;
+    --revise-bg: #ffedd5;
+    --open: #6b21a8;
+    --open-bg: #f3e8ff;
+    --done: #1e40af;
+    --done-bg: #dbeafe;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem 2rem 6rem;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 2rem;
+  }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; padding: 1rem; }
+    nav.toc { position: static; height: auto; max-height: none; }
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    height: calc(100vh - 2rem);
+    overflow-y: auto;
+    font-size: 14px;
+    border-right: 1px solid var(--border);
+    padding-right: 1rem;
+  }
+  nav.toc h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.5rem; }
+  nav.toc ol { list-style: none; padding: 0; margin: 0; }
+  nav.toc li { margin: 0.3rem 0; }
+  nav.toc a { color: var(--fg); text-decoration: none; display: block; padding: 0.15rem 0; }
+  nav.toc a:hover { color: var(--accent); }
+  nav.toc .sub { padding-left: 1rem; font-size: 13px; color: var(--muted); }
+  main { min-width: 0; }
+  h1, h2, h3, h4 { line-height: 1.2; }
+  h1 { font-size: 2rem; margin: 0 0 0.25rem; }
+  h1 + .subtitle { color: var(--muted); margin: 0 0 2rem; }
+  h2 { font-size: 1.5rem; margin: 2.5rem 0 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1.15rem; margin: 1.75rem 0 0.5rem; }
+  h4 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  p, ul, ol { margin: 0.5rem 0; }
+  ul, ol { padding-left: 1.5rem; }
+  li { margin: 0.2rem 0; }
+  code {
+    font: 13px/1.4 "SF Mono", Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+  }
+  pre {
+    font: 13px/1.5 "SF Mono", Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  .mermaid {
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    text-align: center;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+    margin-left: 0.4rem;
+  }
+  .b-locked  { color: var(--locked); background: var(--locked-bg); }
+  .b-draft   { color: var(--draft);  background: var(--draft-bg); }
+  .b-revise  { color: var(--revise); background: var(--revise-bg); }
+  .b-open    { color: var(--open);   background: var(--open-bg); }
+  .b-done    { color: var(--done);   background: var(--done-bg); }
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.done { border-left-color: var(--done); background: #eff6ff; }
+  .callout.warn { border-left-color: var(--revise); background: #fff7ed; }
+  .callout strong { display: block; margin-bottom: 0.25rem; }
+  .footnote { color: var(--muted); font-size: 14px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#status">Where we are</a></li>
+    <li><a href="#read">How to read this plan</a></li>
+    <li><a href="#context">Context</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#stack">Stack</a></li>
+    <li><a href="#db">Database &amp; auth platform</a></li>
+    <li><a href="#auth">Auth + privacy</a>
+      <ol class="sub">
+        <li><a href="#auth-multi">Multi-user households</a></li>
+        <li><a href="#auth-invite">Invite flow</a></li>
+        <li><a href="#auth-flow">Auth flow</a></li>
+        <li><a href="#auth-brevo">Why Brevo</a></li>
+        <li><a href="#auth-session">Session config</a></li>
+        <li><a href="#auth-admin">Admin dashboard</a></li>
+        <li><a href="#auth-rls">Privacy tenants (RLS)</a></li>
+      </ol>
+    </li>
+    <li><a href="#data">Data model</a></li>
+    <li><a href="#phasing">Implementation phasing</a></li>
+    <li><a href="#hosting">Hosting gotchas</a></li>
+    <li><a href="#ui">UI — older-user rules</a></li>
+    <li><a href="#firstrun">First-run guided setup</a></li>
+    <li><a href="#update">Monthly &ldquo;Update&rdquo; pattern</a></li>
+    <li><a href="#files">Files to create</a></li>
+    <li><a href="#ops">Operational setup</a></li>
+    <li><a href="#verify">Verification</a></li>
+    <li><a href="#oos">Out of scope for v1</a></li>
+    <li><a href="#phase2">Phase 2 — open questions</a></li>
+    <li><a href="#history">Review history</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<h1>Parents Financial Advisor &mdash; v1 Plan</h1>
+<p class="subtitle">A planning tool, not a transaction tracker. Two retirement-age households. Free hosting. Login every 1–2 months.</p>
+
+<!-- ============================================================ -->
+<h2 id="status">Where we are <span class="badge b-done">PHASE 1 DONE</span></h2>
+
+<div class="callout done">
+<strong>Snapshot for the next session</strong>
+<p>Phase 1 (identity, auth, RLS, admin dashboard, deploy pipeline) is committed and went through 4 rounds of automated review (code-reviewer + security-auditor). All findings resolved. PR #1 (<a href="https://github.com/jonueki/parents-financial-advisor/pull/1">github.com/jonueki/parents-financial-advisor/pull/1</a>) is on the <code>jonueki/phase-1-foundation</code> branch, awaiting human merge.</p>
+<p>Three things to do next, in roughly this order:</p>
+<ol>
+  <li><strong>Merge PR #1.</strong> Squash-merge recommended (4 commits tell the review story but 1 commit is cleaner history).</li>
+  <li><strong>Iterate this plan</strong> &mdash; especially the <a href="#phase2">Phase 2 open questions</a>. Don&rsquo;t start writing <code>0002_domain.sql</code> until the user has locked those.</li>
+  <li><strong>Track A operational setup</strong> &mdash; create the real Supabase project, wire Brevo, apply the migration, fill <code>.env.local</code>. Until this is done the Phase 1 code can&rsquo;t actually be exercised. See <a href="#ops">Operational setup</a>.</li>
+</ol>
+<p>Then Phase 2 code can start.</p>
+</div>
+
+<p class="footnote">Latest plan revision incorporates: income-streams table (separate from categories), accounts.is_liability + liability types, FK on-delete clauses, role-on-invite column, atomic redeem_invite RPC, atomic remove_member RPC, profiles column grants, safeNext open-redirect guard, error-code mapping in /auth/callback, webhook 404 distinction. These all came out of the 4-round review loop and are reflected in the data-model and auth sections below.</p>
+
+<!-- ============================================================ -->
+<h2 id="read">How to read this plan</h2>
+
+<p>Each section is tagged with a <strong>Status</strong>:</p>
+<ul>
+  <li><span class="badge b-locked">🔒 LOCKED</span> &mdash; signed off; not re-opened without being asked.</li>
+  <li><span class="badge b-draft">🟡 DRAFT</span> &mdash; proposal stands but is open to iteration. Default for everything not yet discussed.</li>
+  <li><span class="badge b-revise">🟠 NEEDS REVISION</span> &mdash; open issue called out; comment below the heading says what to change.</li>
+  <li><span class="badge b-open">❓ OPEN QUESTION</span> &mdash; needs an answer before it can finalize.</li>
+  <li><span class="badge b-done">✅ DONE</span> &mdash; built and verified.</li>
+</ul>
+
+<p><strong>Workflow:</strong></p>
+<ol>
+  <li>Skim a section, change its status, and (if NEEDS REVISION) drop a one-line comment under it.</li>
+  <li>Next session edits just that section and flips it to LOCKED.</li>
+  <li>Repeat until every Phase 2 section is LOCKED, then write the domain migration.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="context">Context <span class="badge b-locked">🔒 LOCKED</span></h2>
+
+<p>A web app for two retirement-age households (parents + in-laws) to do <strong>high-level</strong> budgeting and planning. The user is the developer + admin. Real users will probably log in <strong>once every 1–2 months</strong> to answer questions like <em>&ldquo;can we afford the Japan trip?&rdquo;</em> or <em>&ldquo;how are we doing this year?&rdquo;</em> Not a transaction tracker &mdash; a planning tool.</p>
+
+<p><strong>Design constraints:</strong></p>
+<ul>
+  <li>Manual entry only, <strong>summary-level</strong> (monthly category totals; no per-line transactions).</li>
+  <li>Hosting must be free.</li>
+  <li>Privacy between households is non-negotiable.</li>
+  <li>Non-technical users on phone + laptop.</li>
+  <li>First-run experience must be <strong>guided and linear</strong> &mdash; users should not have to figure out what to do.</li>
+  <li>Scales to ~10 households without re-architecting.</li>
+</ul>
+
+<p><strong>v1 surfaces:</strong></p>
+<ol>
+  <li><strong>Monthly + annual budget vs actual</strong> (categories like Groceries, Utilities).</li>
+  <li><strong>Big-ticket goals</strong> &mdash; named planned spends like &ldquo;Japan trip $10k&rdquo;, &ldquo;New car $30k by 2027&rdquo;. First-class object, not buried in a category.</li>
+  <li><strong>Cash flow / retirement runway</strong> &mdash; derived from monthly totals + net worth.</li>
+  <li><strong>Net worth snapshots</strong> &mdash; manual balance entry per account, monthly cadence.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="architecture">Architecture <span class="badge b-locked">🔒 LOCKED</span></h2>
+
+<div class="mermaid">
+flowchart LR
+  Phone[Phone / Laptop browser] -->|magic link| Vercel
+  Vercel[Next.js 16 on Vercel Hobby]
+  Vercel -->|SSR + Server Actions, anon key + user JWT cookie| Supabase
+  Supabase[(Supabase Postgres + Auth)]
+  Supabase -.RLS filters via household_members.-> Supabase
+  Supabase -->|sends magic-link via SMTP| Brevo[Brevo SMTP relay]
+  Brevo -->|email| Phone
+  Supabase -->|auth webhook| Vercel
+  Cron[Vercel Cron - daily 09:00 UTC] -->|SELECT 1| Supabase
+</div>
+
+<p><strong>Invariants:</strong></p>
+<ul>
+  <li>Every household-scoped table has a <code>household_id</code> column.</li>
+  <li>All reads/writes go through RLS using the user&rsquo;s JWT.</li>
+  <li>The service-role key stays server-only, used <strong>only</strong> in admin dashboard server actions and the auth-webhook handler.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="stack">Stack <span class="badge b-locked">🔒 LOCKED</span></h2>
+
+<ul>
+  <li><strong>Next.js 16 (App Router) + TypeScript</strong> on <strong>Vercel Hobby</strong>. Personal use, not commercial.</li>
+  <li><strong>Supabase free</strong>: Postgres + Auth (magic links) + RLS.</li>
+  <li><strong>Tailwind + shadcn/ui</strong> &mdash; shadcn copies component source into the repo, so every default is overridable for older-user UX (font sizes, hit targets, contrast) without fighting a framework.</li>
+  <li><strong>Brevo free SMTP</strong> (300/day, no sender-domain verification required).</li>
+  <li><strong>Server Actions</strong> for all mutations; <code>revalidatePath</code> after writes.</li>
+</ul>
+
+<div class="callout warn">
+<strong>Note: Next 16, not 15</strong>
+<p>Scaffolding produced Next.js 16, which has breaking changes from Next 15. Specifically: <code>middleware.ts</code> renamed to <code>proxy.ts</code> (export <code>function proxy(...)</code>, Node runtime only); <code>cookies()</code> is fully async; Turbopack default. Local <code>node_modules/next/dist/docs/</code> is the source of truth. <code>AGENTS.md</code> in the repo warns the next session.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="db">Database &amp; auth platform &mdash; why Supabase, what we considered <span class="badge b-locked">🔒 LOCKED</span></h2>
+
+<p>The user asked about cheaper / Vercel-native DB options like SQLite. Worth being concrete:</p>
+
+<table>
+<thead>
+<tr><th>Option</th><th>DB</th><th>Auth bundled?</th><th>Pauses?</th><th>Free quota</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Supabase free</strong> (proposed)</td><td>Postgres</td><td>✅ magic links, sessions, admin API, RLS</td><td>Yes, after 7d idle</td><td>500 MB + 50k MAU</td><td>Daily heartbeat fixes pause.</td></tr>
+<tr><td>Vercel Postgres</td><td>Postgres (Neon)</td><td>❌ bring your own</td><td>Yes (Neon auto-suspend)</td><td>256 MB</td><td>Same pause problem; adds auth complexity.</td></tr>
+<tr><td>Neon free</td><td>Postgres</td><td>❌</td><td>Yes</td><td>512 MB</td><td>Same as above.</td></tr>
+<tr><td>Turso free</td><td>SQLite (libSQL)</td><td>❌</td><td>No (edge replicas)</td><td>500 DBs, 9 GB</td><td>DB is great; you&rsquo;d write all the auth glue.</td></tr>
+<tr><td>Cloudflare D1</td><td>SQLite</td><td>❌</td><td>No</td><td>5 GB, 25M reads/day</td><td>Same: auth is on you.</td></tr>
+<tr><td>Vercel KV / Redis</td><td>Key-value</td><td>❌</td><td>n/a</td><td>Tiny</td><td>Not a fit &mdash; relational queries needed.</td></tr>
+</tbody>
+</table>
+
+<p>The Supabase win is <strong>Auth, not the DB</strong>. Magic links, session refresh, server-side cookie helpers (<code>@supabase/ssr</code>), refresh-token rotation, admin APIs for revocation, webhooks for audit &mdash; all bundled. Recreating that on SQLite means wiring Auth.js or Lucia + Brevo + a sessions table + revocation logic + audit hooks. That&rsquo;s roughly 2 days of net-new code with no business value.</p>
+
+<p>If the 7-day pause is the only thing pushing off Supabase, the daily heartbeat (1 line in <code>vercel.json</code>, 3-line API route) is the lower-cost fix. Revisit if the app grows beyond free-tier limits.</p>
+
+<!-- ============================================================ -->
+<h2 id="auth">Auth + privacy &mdash; detailed <span class="badge b-locked">🔒 LOCKED</span></h2>
+
+<p>This is the security spine. Three concerns that get conflated but are separate:</p>
+<ol>
+  <li><strong>Authentication</strong> &mdash; proving who you are. Handled by Supabase Auth via magic link, delivered by Brevo SMTP.</li>
+  <li><strong>Authorization / privacy</strong> &mdash; controlling what you can see. Handled by Postgres RLS keyed on <strong>household membership</strong> (a many-to-many relation, not a single column on <code>profiles</code>).</li>
+  <li><strong>Accountability</strong> &mdash; knowing what was done by whom, and being able to cut off access. Handled by an <code>audit_log</code> table + admin dashboard + Supabase admin API.</li>
+</ol>
+
+<h3 id="auth-multi">Households are multi-user</h3>
+<p>Multiple email addresses can belong to one household. v1 roles:</p>
+<ul>
+  <li><code>owner</code> &mdash; a family member of that household. Read/write on their own household. Can invite others to <em>their</em> household.</li>
+  <li><code>admin</code> &mdash; the developer. Read/write on every household, plus access to <code>/admin</code>. Not a row in <code>household_members</code>; it&rsquo;s a flag (<code>profiles.is_admin</code>).</li>
+</ul>
+<p>Future roles (<code>viewer</code>, <code>accountant</code>, etc.) drop in by extending the role enum + RLS predicates; no schema rework required.</p>
+
+<h3 id="auth-invite">Invite flow</h3>
+<ol>
+  <li>Owner clicks &ldquo;Invite&rdquo; in Settings → enters invitee&rsquo;s email (optional &mdash; the link works without it) and a <strong>role</strong> → server generates a 32-byte random token, stores hash in <code>household_invites</code> with <code>expires_at</code> (7 days), <code>created_by</code>, and the chosen role.</li>
+  <li>App shows the link <code>/join?token=…</code> for the owner to share via whatever channel they want. If they entered an email, the link also goes via Brevo.</li>
+  <li>Invitee opens link → if not signed in, magic-link login first → after auth, <code>/join</code> renders a <strong>confirmation form</strong> (not auto-redeem on GET, to prevent link-prefetcher abuse). On POST submit, the <code>redeem_invite</code> SQL function atomically claims the invite (race-free single-use), checks the email-binding when present, and inserts the membership row with the role from the invite.</li>
+  <li>Tokens are single-use, expirable, and revocable from <code>/admin</code>.</li>
+</ol>
+
+<h3 id="auth-flow">Auth flow (step by step)</h3>
+<pre><code>User → /login page
+     ↓ enter email
+     → supabase.auth.signInWithOtp({ email })
+        ↓
+        Supabase Auth generates one-time token
+        ↓
+        Supabase calls SMTP server (Brevo, configured in Auth → SMTP)
+        ↓
+        Brevo delivers the magic-link email to the user&rsquo;s inbox
+     ←
+User clicks link in email → /auth/callback?token=...
+     ↓
+     supabase.auth.exchangeCodeForSession(token)
+        ↓
+        Supabase Auth validates token, mints JWT + refresh token
+     ←
+     @supabase/ssr writes them into HttpOnly cookies
+     ↓
+User redirected to /budget (next param validated by safeNext) &mdash; fully signed in</code></pre>
+
+<h3 id="auth-brevo">Why Brevo (and what role it plays)</h3>
+<p>Supabase&rsquo;s <em>built-in</em> SMTP is shared infrastructure capped at <strong>2 emails/hour</strong> and is explicitly only for testing &mdash; they will throttle/block real apps. You have to point Supabase at <em>some</em> external SMTP. Options:</p>
+<ul>
+  <li><strong>Brevo free</strong> &mdash; 300/day, no domain verification, ~5 minute setup. Wins on setup cost.</li>
+  <li><strong>Resend free</strong> &mdash; 100/day but requires DNS-verified sender domain. More polished, more work.</li>
+  <li><strong>AWS SES</strong> &mdash; cheapest at scale, slow to provision, sandbox mode by default.</li>
+</ul>
+<p>Brevo is the right v1 pick. Supabase doesn&rsquo;t talk to Brevo at runtime in any special way &mdash; it just uses Brevo&rsquo;s SMTP creds. If we ever outgrow it, swap creds; no app code changes.</p>
+
+<h3 id="auth-session">Session config (Supabase Auth dashboard)</h3>
+<ul>
+  <li>JWT (access token) expiry: 3600s (default).</li>
+  <li>Refresh token rotation: ON.</li>
+  <li>Inactivity timeout: <strong>90 days</strong>.</li>
+  <li>Absolute time-box: <strong>365 days</strong>.</li>
+</ul>
+<p>This is &ldquo;stay logged in basically forever unless you don&rsquo;t open it for 3 months.&rdquo; Matches a 1-2x/month usage pattern &mdash; frequent re-auth would be a constant annoyance for older users.</p>
+
+<p><strong>Tradeoffs and what mitigates each:</strong></p>
+<ul>
+  <li><strong>Stolen device = stolen session for up to a year.</strong> User-facing mitigation: &ldquo;Sign out everywhere&rdquo; button calling <code>supabase.auth.signOut({ scope: 'global' })</code>. Admin-facing mitigation: revoke individual sessions from <code>/admin/sessions</code>.</li>
+  <li><strong>Destructive ops.</strong> Delete-household, remove-member, etc. require a fresh re-auth challenge regardless of session age. <span class="badge b-draft">🟡 not implemented in Phase 1; deferred to UI work</span></li>
+</ul>
+
+<h3 id="auth-admin">Admin dashboard + revocation + audit trail</h3>
+<p>The admin needs to see who&rsquo;s logging in, what they&rsquo;re doing, and cut off access at will:</p>
+<ul>
+  <li><code>/admin</code> route, gated on <code>profiles.is_admin = true</code> in the layout <strong>and</strong> at the top of each tab page (defense in depth).</li>
+  <li><strong>Households tab</strong> &mdash; list each household, members, last sign-in, last activity. Per-member &ldquo;Remove&rdquo; button calls the atomic <code>remove_member</code> RPC (refuses if it would leave zero owners).</li>
+  <li><strong>Sessions tab</strong> &mdash; list active sessions across all users (<code>auth.admin.listUsers()</code>). Per-user &ldquo;Revoke sessions&rdquo; button calls <code>auth.admin.signOut(userId, &quot;global&quot;)</code>.</li>
+  <li><strong>Invites tab</strong> &mdash; list outstanding <code>household_invites</code> with revoke buttons.</li>
+  <li><strong>Audit log tab</strong> &mdash; paginated viewer with the most recent 100 events. Filters by actor / action / household to land in Phase 2.</li>
+</ul>
+
+<p><code>audit_log</code> writes happen at three layers:</p>
+<ol>
+  <li><strong>Sign-in events</strong> &mdash; logged inline in <code>/auth/callback</code> right after <code>exchangeCodeForSession</code> succeeds. (Originally planned via Supabase Auth webhook, but the SDK doesn&rsquo;t expose a clean &ldquo;after sign-in&rdquo; hook; inline is more reliable.)</li>
+  <li><strong>Sign-out + other lifecycle events</strong> &mdash; via the Supabase Auth webhook at <code>/api/webhooks/supabase-auth</code>. Verifies a shared <code>SUPABASE_WEBHOOK_SECRET</code> via constant-time compare; re-resolves the actor identity from <code>auth.users</code> (does not trust the payload).</li>
+  <li><strong>Sensitive mutations + admin actions</strong> &mdash; every server action that writes calls <code>logAudit()</code> before returning. Helper uses the service-role client so audit writes bypass RLS.</li>
+</ol>
+
+<pre><code class="language-sql">audit_log (
+  id uuid pk,
+  actor_profile_id uuid references profiles(id) on delete set null,
+  actor_email text,           -- denormalized so the row stays readable after a user is deleted
+  household_id uuid,          -- nullable for global/admin actions
+  action_type text,           -- 'sign_in', 'sign_out', 'invite_created', 'member_removed',
+                              -- 'account_created', 'snapshot_recorded', 'goal_updated',
+                              -- 'session_revoked_by_admin', ...
+  target_table text,          -- nullable
+  target_id uuid,             -- nullable
+  metadata jsonb,             -- shape varies by action_type; never PII beyond the email column
+  ip_address inet,            -- x-vercel-forwarded-for preferred; raw XFF fallback for local dev
+  user_agent text,
+  created_at timestamptz default now()
+)</code></pre>
+
+<p>RLS on <code>audit_log</code>: admin only. No regular user can read it (including their own rows) &mdash; keeps the dashboard honest and avoids leaking that another household exists.</p>
+
+<h3 id="auth-rls">Privacy tenants (RLS)</h3>
+<p>Three rules enforced by Postgres, not by app code:</p>
+<ol>
+  <li>A user can only <code>SELECT/INSERT/UPDATE/DELETE</code> rows in households they&rsquo;re a member of.</li>
+  <li>Admin (the dev, via <code>profiles.is_admin = true</code>) bypasses #1.</li>
+  <li>Anonymous (signed-out) sessions see nothing.</li>
+</ol>
+
+<p>Policy template applied to every household-scoped table:</p>
+<pre><code class="language-sql">USING (
+  is_member_of(household_id)
+  OR is_admin()
+)</code></pre>
+
+<p><code>is_member_of()</code>, <code>is_owner_of()</code>, <code>is_admin()</code>, <code>shares_household_with()</code> are all <code>SECURITY DEFINER</code> functions with <code>SET search_path = public</code>. They avoid RLS recursion through the helper tables and are safe from search-path injection.</p>
+
+<p><strong>Gotchas baked into the migration:</strong></p>
+<ul>
+  <li>Separate <code>SELECT/UPDATE/DELETE</code> policies (use <code>USING</code>) from <code>INSERT</code> policies (use <code>WITH CHECK</code>) &mdash; they aren&rsquo;t interchangeable.</li>
+  <li>Wrap <code>auth.uid()</code> as <code>(SELECT auth.uid())</code> &mdash; documented Supabase planner-caching tip.</li>
+  <li>Service-role key stays server-only. Used <strong>only</strong> by admin dashboard server actions, invite redemption, audit-log writes, and the auth webhook handler. Never imported by user-facing routes.</li>
+  <li><code>profiles</code> has a column-level grant: <code>REVOKE UPDATE … FROM authenticated; GRANT UPDATE(display_name) … TO authenticated</code>. Belt + suspenders with the <code>profiles_update_self</code> policy so users can&rsquo;t rewrite <code>email</code> to spoof identity in admin views. Consequence: admin profile UPDATEs must go through the service-role client.</li>
+  <li>One Playwright test in CI: signs in as user A, fetches every API route, asserts user B&rsquo;s data does not appear. RLS leaks are silent &mdash; automate the check. <span class="badge b-draft">🟡 not yet written; waits for real Supabase project</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="data">Data model <span class="badge b-locked">🔒 LOCKED for identity/access/audit · 🟡 DRAFT for domain</span></h2>
+
+<p>All money stored as <code>_cents</code> integers (always positive; sign is conveyed by which table the row lives in, not by the value).</p>
+
+<h3>Identity &amp; access <span class="badge b-locked">🔒 LOCKED</span></h3>
+<ul>
+  <li><code>profiles</code> &mdash; <code>id</code> (= <code>auth.uid()</code>), <code>email</code> (sourced from <code>auth.users</code> via trigger), <code>display_name</code>, <code>is_admin</code> boolean.</li>
+  <li><code>households</code> &mdash; <code>id</code>, <code>name</code>, <code>created_at</code>, <code>created_by</code> (nullable; <code>ON DELETE SET NULL</code>).</li>
+  <li><code>household_members</code> &mdash; <code>household_id</code>, <code>profile_id</code>, <code>role</code> enum (<code>owner</code> | <code>viewer</code> | <code>accountant</code>), <code>joined_at</code>. PK <code>(household_id, profile_id)</code>. Default role is <code>viewer</code> for fail-safety.</li>
+  <li><code>household_invites</code> &mdash; <code>id</code>, <code>household_id</code>, <code>token_hash</code> (SHA-256 of a CSPRNG token), <code>email</code> (nullable; enforced at redemption when set), <strong><code>role</code></strong> (enum, default <code>viewer</code> &mdash; the role the redeemer receives), <code>created_by</code>, <code>created_at</code>, <code>expires_at</code>, <code>consumed_at</code>, <code>consumed_by</code>.</li>
+</ul>
+
+<h3>Audit <span class="badge b-locked">🔒 LOCKED</span></h3>
+<ul>
+  <li><code>audit_log</code> &mdash; as sketched in the Auth section. RLS: admin-read-only. Writes always via service-role.</li>
+</ul>
+
+<h3>Domain &mdash; assets &amp; liabilities <span class="badge b-draft">🟡 DRAFT</span></h3>
+<ul>
+  <li><code>accounts</code> &mdash; <code>household_id</code>, <code>name</code>, <code>type</code> (enum: <code>checking</code> / <code>savings</code> / <code>investment</code> / <code>retirement</code> / <code>credit_card</code> / <code>mortgage</code> / <code>loan</code> / <code>other</code>), <strong><code>is_liability</code></strong> boolean, <code>current_balance_cents</code>. For liabilities the balance is stored as a positive number; net worth math is <code>SUM(assets) − SUM(liabilities)</code>. <code>is_liability</code> is the source of truth so the <code>other</code> type can be either.</li>
+  <li><code>account_snapshots</code> &mdash; <code>account_id</code>, <code>balance_cents</code>, <code>snapshot_date</code>. Unique on <code>(account_id, snapshot_date)</code>.</li>
+</ul>
+
+<h3>Domain &mdash; budgeting (expenses) <span class="badge b-draft">🟡 DRAFT</span></h3>
+<ul>
+  <li><code>budget_categories</code> &mdash; <code>household_id</code>, <code>name</code>, <code>monthly_budget_cents</code> (nullable), <code>annual_budget_cents</code> (nullable). Expense categories only. Seeded with ~10 defaults at household creation.</li>
+  <li><code>category_actuals</code> &mdash; <code>household_id</code>, <code>category_id</code>, <code>year</code>, <code>month</code> (1–12), <code>amount_cents</code>. One row per category per month. Unique on <code>(category_id, year, month)</code>.</li>
+</ul>
+
+<h3>Domain &mdash; budgeting (income) <span class="badge b-draft">🟡 DRAFT</span></h3>
+<ul>
+  <li><code>income_streams</code> &mdash; <code>household_id</code>, <code>name</code> (e.g. &ldquo;Social Security&rdquo;, &ldquo;Pension&rdquo;, &ldquo;401k withdrawal&rdquo;), <code>expected_monthly_cents</code> (nullable, used for projection). Stable list users edit only when their situation changes.</li>
+  <li><code>income_actuals</code> &mdash; <code>household_id</code>, <code>income_stream_id</code>, <code>year</code>, <code>month</code>, <code>amount_cents</code>. Same shape as <code>category_actuals</code> so the monthly update wizard stays symmetric.</li>
+</ul>
+
+<h3>Domain &mdash; goals <span class="badge b-draft">🟡 DRAFT</span></h3>
+<ul>
+  <li><code>goals</code> &mdash; <code>household_id</code>, <code>name</code> (&ldquo;Japan trip&rdquo;), <code>target_amount_cents</code>, <code>target_date</code> (nullable), <code>saved_cents</code> (manual), <code>status</code> (<code>planning</code>/<code>saving</code>/<code>booked</code>/<code>done</code>/<code>cancelled</code>), <code>notes</code>.</li>
+</ul>
+
+<h3>Derived numbers</h3>
+<ul>
+  <li>Net worth = <code>SUM(accounts.current_balance_cents) WHERE is_liability=false</code> &minus; <code>SUM(accounts.current_balance_cents) WHERE is_liability=true</code>, taken from the latest snapshot per account.</li>
+  <li>Monthly cash flow = <code>SUM(income_actuals) − SUM(category_actuals)</code> for a given (year, month).</li>
+  <li>Annual cash flow = same, rolled up to year.</li>
+  <li>Budget vs actual = compare <code>category_actuals</code> to <code>budget_categories.monthly_budget_cents</code> / <code>annual_budget_cents</code>.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="phasing">Implementation phasing <span class="badge b-locked">🔒 LOCKED structure · phase status updated below</span></h2>
+
+<h3>Phase 1 &mdash; Foundation <span class="badge b-done">✅ DONE</span></h3>
+<p>Identity, multi-tenant safety, and the deploy pipeline. No UI flows that touch budgeting/goals yet.</p>
+<ol>
+  <li>✅ Scaffold: <code>npx create-next-app</code>, Tailwind, env vars. (npm, not pnpm &mdash; user&rsquo;s machine has no pnpm.)</li>
+  <li>⬜ Supabase project + Brevo SMTP wired up. <em>Operational, deferred to Track A.</em></li>
+  <li>✅ Migration <code>0001_init.sql</code>: identity + access + audit + helper functions + <code>redeem_invite</code> + <code>remove_member</code> RPCs.</li>
+  <li>✅ <code>@supabase/ssr</code> clients (<code>lib/supabase/{server,client,proxy}.ts</code>) + root <code>proxy.ts</code> (Next 16 rename).</li>
+  <li>✅ <code>/login</code> magic link + <code>/auth/callback</code> route. Error-code mapping; <code>safeNext</code> allowlist.</li>
+  <li>✅ <code>/api/webhooks/supabase-auth</code> with shared-secret check, canonical actor lookup, 404 vs 5xx distinction.</li>
+  <li>✅ <code>/join?token=…</code> invite redemption via POST/form (no GET-mutation). Backed by atomic <code>redeem_invite</code> SQL function.</li>
+  <li>✅ <code>lib/audit.ts</code> helper. <code>x-vercel-forwarded-for</code> preferred.</li>
+  <li>✅ <code>/admin</code> dashboard skeleton (households / sessions / invites / audit tabs). Per-page <code>requireAdminOrRedirect()</code>.</li>
+  <li>✅ Vercel Cron heartbeat (<code>/api/heartbeat</code>, <code>vercel.json</code>).</li>
+  <li>⬜ Playwright RLS test. <em>Needs real Supabase project to run against; deferred.</em></li>
+  <li>⬜ Deploy to Vercel preview; confirm magic-link email arrives via Brevo end-to-end. <em>Needs Track A.</em></li>
+</ol>
+
+<p><strong>Phase 1 PR:</strong> <a href="https://github.com/jonueki/parents-financial-advisor/pull/1">#1</a> on branch <code>jonueki/phase-1-foundation</code>. Four review rounds, all findings resolved. Approved.</p>
+
+<h3>Phase 2 &mdash; Domain <span class="badge b-draft">🟡 DRAFT &mdash; resolve open questions first</span></h3>
+<p>Migration <code>0002_domain.sql</code> lands once the domain data-model questions in <a href="#phase2">&ldquo;Phase 2 open questions&rdquo;</a> are locked. UI builds on top:</p>
+<ul>
+  <li>Accounts CRUD (Settings) + monthly snapshot wizard (Net Worth tab).</li>
+  <li>Income + expense category CRUD (Settings) + monthly actuals wizard (Budget tab).</li>
+  <li>Goals CRUD (Goals tab).</li>
+  <li><strong>Create-household + create-invite UI in Settings + /admin</strong> &mdash; not yet built. For Phase 1 the workaround is creating these via the Supabase SQL editor.</li>
+  <li>First-run onboarding stepper wiring all of the above together.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="hosting">Hosting gotchas <span class="badge b-locked">🔒 LOCKED</span></h2>
+<ul>
+  <li><strong>Supabase free pauses after 7 days of zero DB activity.</strong> First request after pause = 30–60s cold error. Fix: <code>app/api/heartbeat/route.ts</code> runs a query; Vercel Cron hits it daily at 09:00 UTC. Hobby cron is <strong>daily-frequency only</strong>.</li>
+  <li><strong>Vercel Hobby = personal use only.</strong> Helping family qualifies.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="ui">UI &mdash; older-user rules <span class="badge b-draft">🟡 DRAFT</span></h2>
+<ul>
+  <li>Base font <strong>18–20px</strong>. Buttons min <strong>56px tall</strong>.</li>
+  <li>WCAG AAA contrast (7:1).</li>
+  <li>No hover-only affordances.</li>
+  <li><strong>No hamburger menu.</strong> Flat bottom tab bar: <strong>Budget · Goals · Net Worth · Settings</strong>. (Cash-flow lives inside Budget as a summary card; standalone tab is overkill.)</li>
+  <li>Destructive actions confirm in a full modal, not a toast.</li>
+  <li>Money formatted <strong><code>$1,234</code></strong> on dashboards; cents only on edit screens.</li>
+  <li>Icons always paired with text labels.</li>
+  <li>One primary (blue) action per screen.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="firstrun">First-run guided setup <span class="badge b-draft">🟡 DRAFT</span></h2>
+<p>Linear stepper, finishable in &lt;5 minutes, can&rsquo;t be skipped on first visit:</p>
+<ol>
+  <li><strong>Welcome</strong> &mdash; one paragraph in plain language.</li>
+  <li><strong>Name your household</strong> &mdash; text input.</li>
+  <li><strong>Add your accounts</strong> &mdash; repeat-add UI for accounts + current balance + asset/liability toggle. &ldquo;Skip for now&rdquo; allowed.</li>
+  <li><strong>Add your income streams</strong> &mdash; pension / SS / withdrawals / dividends. &ldquo;Skip for now&rdquo; allowed.</li>
+  <li><strong>Review default categories</strong> &mdash; show seeded list with current monthly-budget defaults, let them edit numbers or remove rows. &ldquo;Looks good&rdquo; continues.</li>
+  <li><strong>Add a goal</strong> (optional) &mdash; &ldquo;Anything big coming up? Trip, car, repair?&rdquo; Single-row form.</li>
+  <li><strong>Done</strong> &mdash; drops them on the Budget tab with a non-dismissable banner: <em>&ldquo;This month is empty. Add your first month&rsquo;s totals when you&rsquo;re ready.&rdquo;</em></li>
+</ol>
+<p>After first run, returning users always land on Budget. The wizard re-appears only if <code>accounts</code> is empty.</p>
+
+<!-- ============================================================ -->
+<h2 id="update">Monthly &ldquo;Update&rdquo; pattern <span class="badge b-draft">🟡 DRAFT</span></h2>
+<p>Two short wizards, surfaced as dashboard banners when overdue:</p>
+<ul>
+  <li><strong>Update balances</strong> (net worth) &mdash; one screen per account: <em>&ldquo;Chase Checking: last $4,200 on Apr 15. Today?&rdquo;</em> Writes <code>account_snapshots</code> + updates <code>accounts.current_balance_cents</code>.</li>
+  <li><strong>Update last month&rsquo;s spending</strong> &mdash; one screen per category (and one per income stream): <em>&ldquo;Groceries &mdash; about how much in April?&rdquo;</em> Writes <code>category_actuals</code> / <code>income_actuals</code>.</li>
+</ul>
+<p>Both are skippable per-step. Designed so a user who logs in after 2 months can catch up in 3 minutes.</p>
+<p>No email reminders. They&rsquo;ll come back when they need the app.</p>
+
+<!-- ============================================================ -->
+<h2 id="files">Files (committed in Phase 1) <span class="badge b-done">✅ DONE</span></h2>
+<p>Full Phase 1 file inventory &mdash; all of these are in PR #1:</p>
+<pre><code>.env.example                                  - required env vars
+.gitignore                                    - patched to keep .env.example
+.npmrc                                        - pins this project to public npm registry
+vercel.json                                   - daily 09:00 UTC heartbeat cron
+proxy.ts                                      - Next 16's renamed middleware
+supabase/migrations/0001_init.sql             - identity/access/audit + RLS + RPCs
+
+lib/supabase/server.ts                        - createSupabaseServerClient + admin client
+lib/supabase/client.ts                        - createBrowserClient
+lib/supabase/proxy.ts                         - updateSession() helper for proxy.ts
+lib/audit.ts                                  - logAudit() helper
+lib/safe-next.ts                              - open-redirect guard (allowlist)
+lib/require-admin.ts                          - per-page admin gate
+
+app/layout.tsx                                - root (Geist fonts, base 18px)
+app/globals.css                               - base font-size + tap-target minimum
+app/page.tsx                                  - redirect("/budget")
+
+app/(auth)/login/page.tsx                     - magic-link UI
+app/(auth)/login/login-form.tsx               - client form with useActionState
+app/(auth)/login/actions.ts                   - sendMagicLink server action
+app/auth/callback/route.ts                    - exchangeCodeForSession + audit sign_in
+
+app/(app)/layout.tsx                          - auth-gated; bottom-tab nav
+app/(app)/budget/page.tsx                     - Phase 2 stub
+app/(app)/goals/page.tsx                      - Phase 2 stub
+app/(app)/net-worth/page.tsx                  - Phase 2 stub
+app/(app)/settings/page.tsx                   - shows email + sign-out form
+app/(app)/join/page.tsx                       - confirmation form (no GET-mutation)
+app/(app)/join/join-form.tsx                  - client form
+app/(app)/join/actions.ts                     - redeemInvite via redeem_invite RPC
+
+app/(admin)/admin/layout.tsx                  - is_admin gate + tab nav
+app/(admin)/admin/page.tsx                    - redirect to /admin/households
+app/(admin)/admin/actions.ts                  - revokeUserSessions, revokeInvite, removeMember
+app/(admin)/admin/households/page.tsx         - list households + members; remove via RPC
+app/(admin)/admin/sessions/page.tsx           - list users; revoke globally
+app/(admin)/admin/invites/page.tsx            - list invites; revoke active ones
+app/(admin)/admin/audit/page.tsx              - recent-100 audit log viewer
+
+app/api/heartbeat/route.ts                    - SELECT 1 against profiles
+app/api/auth/sign-out/route.ts                - POST: audit + signOut + redirect
+app/api/webhooks/supabase-auth/route.ts       - shared-secret check, canonical actor lookup</code></pre>
+
+<p>Not yet built (Phase 2 + ops):</p>
+<ul>
+  <li><code>app/(app)/onboarding/page.tsx</code> &mdash; first-run stepper</li>
+  <li>Domain Settings UI &mdash; accounts CRUD, categories CRUD, income-streams CRUD, invite-members form</li>
+  <li><code>tests/rls.spec.ts</code> &mdash; Playwright RLS test (needs real Supabase project)</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="ops">Operational setup (outside the repo) <span class="badge b-draft">🟡 DRAFT &mdash; not yet done</span></h2>
+
+<p>Required before Phase 1 can be tested end-to-end:</p>
+<ul>
+  <li>Create Supabase project (free tier, US region).</li>
+  <li>Create Brevo account, generate SMTP creds, paste into Supabase Auth → SMTP settings.</li>
+  <li>Rewrite Supabase magic-link email template into plain language.</li>
+  <li>Set session inactivity to 90d, time-box to 365d.</li>
+  <li>Apply <code>supabase/migrations/0001_init.sql</code> via Supabase CLI or SQL editor.</li>
+  <li>Vercel project linked to repo. Env vars:
+    <ul>
+      <li><code>NEXT_PUBLIC_SUPABASE_URL</code></li>
+      <li><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></li>
+      <li><code>SUPABASE_SERVICE_ROLE_KEY</code> (server-only)</li>
+      <li><code>SUPABASE_WEBHOOK_SECRET</code> (<code>openssl rand -hex 32</code>)</li>
+      <li><code>NEXT_PUBLIC_SITE_URL</code></li>
+    </ul>
+  </li>
+  <li>After first login, manually flip <code>is_admin = true</code> on your <code>profiles</code> row via the Supabase SQL editor.</li>
+  <li>In Supabase Auth → Webhooks, point <code>auth.user.signed_out</code> at <code>https://&lt;app&gt;/api/webhooks/supabase-auth</code> with the Bearer secret.</li>
+  <li>From <code>/admin</code> (once Phase 2 builds the create-household UI) or directly in SQL, create the two households and send invite links to each parent/in-law&rsquo;s email.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="verify">Verification <span class="badge b-draft">🟡 DRAFT &mdash; waiting on ops setup</span></h2>
+<p>End-to-end smoke test before sharing the URL:</p>
+<ol>
+  <li><code>npm run dev</code>, sign up via magic link, confirm cookie session survives a browser restart.</li>
+  <li>Walk through first-run wizard end-to-end as a brand-new user. <em>Pending Phase 2.</em></li>
+  <li>Run Playwright RLS test &mdash; log in as user A, assert user B&rsquo;s data is invisible across every API route.</li>
+  <li>Populate a few months of <code>category_actuals</code>, an income stream, a goal, a couple of account snapshots; confirm budget rollups, net-worth chart, and cash-flow math.</li>
+  <li>Switch to admin user; confirm visibility into both households, ability to revoke a session, ability to remove a member (last-owner check rejects), and that <code>audit_log</code> shows sign-in + revocation + removal events.</li>
+  <li>Invite a second user into a household via the link; confirm membership lands with the right role and they cannot see the other household.</li>
+  <li>Walk through both monthly &ldquo;Update&rdquo; wizards.</li>
+  <li>Deploy to Vercel preview; verify magic-link emails arrive via Brevo (check spam folder, tune From-name and reply-to).</li>
+  <li>Test on a real phone: tap targets right, fonts readable at arm&rsquo;s length.</li>
+  <li>After 24h, confirm Vercel Cron heartbeat fired (Vercel logs) and Supabase logged the query.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="oos">Out of scope for v1 <span class="badge b-locked">🔒 LOCKED</span></h2>
+<ul>
+  <li>Per-transaction tracking.</li>
+  <li>Bank sync (Plaid/Teller).</li>
+  <li>Recurring bills auto-materialization.</li>
+  <li>Additional roles beyond <code>owner</code> + <code>admin</code> (<code>viewer</code>, <code>accountant</code> &mdash; schema supports them; UI does not).</li>
+  <li>Multi-currency.</li>
+  <li>Email/push reminders.</li>
+  <li>Reports / CSV exports.</li>
+  <li>Mobile app wrapper.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="phase2">Phase 2 &mdash; open questions for the next session <span class="badge b-open">❓ OPEN</span></h2>
+
+<p>These need to be answered before writing <code>supabase/migrations/0002_domain.sql</code>:</p>
+
+<ol>
+  <li><strong>Year+month integers vs. first-of-month date</strong> for <code>category_actuals</code> and <code>income_actuals</code>. Date is more flexible (date_trunc queries, range filters); integers match how non-technical users think. <em>Recommendation: first-of-month <code>period_start date</code> with a CHECK that the day is 1. UI shows &ldquo;April 2026&rdquo;.</em></li>
+
+  <li><strong>Soft-delete on <code>budget_categories</code> and <code>income_streams</code>.</strong> Removing a category mid-year would orphan its actuals. Options:
+    <ul>
+      <li>(a) Hard delete with <code>ON DELETE RESTRICT</code> on actuals (forces user to delete actuals first &mdash; bad UX).</li>
+      <li>(b) Hard delete with <code>ON DELETE CASCADE</code> (loses historical data &mdash; bad).</li>
+      <li>(c) Soft delete via <code>archived_at timestamptz</code>. Actuals stay; UI filters archived from the create-new-actual picker. <em>Recommendation: (c).</em></li>
+    </ul>
+  </li>
+
+  <li><strong>Default seed categories.</strong> The plan says ~10: Groceries, Utilities, Housing, Transport, Healthcare, Insurance, Dining, Entertainment, Gifts, Misc. Confirm vs. let the user pick at onboarding. <em>Recommendation: seed them, let onboarding edit/remove. Choosing from blank is paralysis.</em></li>
+
+  <li><strong>Goal &ldquo;saved_cents&rdquo; source.</strong> Manual entry as planned, OR derived from a designated savings account&rsquo;s balance? <em>Recommendation: manual for v1 (simpler, matches the rest of the manual-entry model). Reconsider in v2 if it&rsquo;s annoying.</em></li>
+
+  <li><strong>Cash-flow card location.</strong> Plan says &ldquo;cash-flow lives inside Budget as a summary card.&rdquo; Confirm: top of the Budget tab, showing current month income vs expenses + 6-month runway projection?</li>
+
+  <li><strong>Net-worth chart granularity.</strong> Plot monthly snapshots? Per-account stacked, or aggregated? Default time range (12 months)?</li>
+
+  <li><strong>Onboarding skip-ability.</strong> The plan says &ldquo;can&rsquo;t be skipped on first visit.&rdquo; Confirm we want a hard gate &mdash; users land on a blank Budget tab if they bail mid-onboarding and that&rsquo;s confusing.</li>
+
+  <li><strong>Invite-creation UX.</strong> Owner&rsquo;s view in Settings → &ldquo;Invite&rdquo; form should ask for: invitee email (optional), role (default <code>viewer</code>), expiry (default 7 days). Show the resulting <code>/join?token=…</code> link inline; the email send is opt-in. Confirm shape.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="history">Review history</h2>
+
+<table>
+<thead>
+<tr><th>Round</th><th>Findings</th><th>Outcome</th><th>Commit</th></tr>
+</thead>
+<tbody>
+<tr><td>Phase 1 scaffold</td><td>&mdash;</td><td>Initial Phase 1 implementation</td><td><code>611cafa</code></td></tr>
+<tr><td>Round 1</td><td>17 (6 must-fix, 5 should-fix, 4 defense-in-depth, 2 nits)</td><td>All resolved</td><td><code>5d552eb</code></td></tr>
+<tr><td>Round 2</td><td>5 new findings in round-1 fixes</td><td>All resolved</td><td><code>1baf150</code></td></tr>
+<tr><td>Round 3</td><td>2 blockers + 1 minor (in round-2 fixes)</td><td>All resolved</td><td><code>7025cc3</code></td></tr>
+<tr><td>Round 4</td><td>None &mdash; approved for merge</td><td>✅</td><td>&mdash;</td></tr>
+</tbody>
+</table>
+
+<p><strong>Key fixes that came out of the loop</strong> (all reflected in the data-model and auth sections above):</p>
+<ul>
+  <li>Atomic <code>redeem_invite</code> SQL function (race-free single-use, identity from <code>auth.uid()</code>, email binding, role from invite).</li>
+  <li>Atomic <code>remove_member</code> SQL function with CTE-based row locking (concurrent admins serialize on the same owner-row lock set).</li>
+  <li><code>safeNext</code> allowlist (regex) replaces an earlier denylist approach.</li>
+  <li>Webhook canonical actor lookup with 404-vs-5xx distinction (404 = legitimate null actor; 5xx = retry).</li>
+  <li>FK <code>ON DELETE SET NULL</code> on <code>households.created_by</code>, <code>household_invites.created_by</code>, <code>household_invites.consumed_by</code> so <code>auth.users</code> deletion isn&rsquo;t blocked.</li>
+  <li>Column-level grant on <code>profiles</code> restricting <code>authenticated</code> to UPDATE only on <code>display_name</code>.</li>
+  <li><code>crypto.timingSafeEqual</code> replaces a hand-rolled compare in the webhook handler.</li>
+  <li>Error-code allowlist in <code>/auth/callback</code> prevents reflecting raw <code>error.message</code> into the URL.</li>
+  <li><code>x-vercel-forwarded-for</code> preferred over raw <code>x-forwarded-for</code> in audit logging.</li>
+  <li>Per-page <code>requireAdminOrRedirect()</code> in every admin tab (defense in depth on top of the layout gate).</li>
+</ul>
+
+<p>Full PR thread with reviewer comments + resolution logs: <a href="https://github.com/jonueki/parents-financial-advisor/pull/1">github.com/jonueki/parents-financial-advisor/pull/1</a></p>
+
+</main>
+</body>
+</html>
