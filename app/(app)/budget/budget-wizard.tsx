@@ -307,7 +307,7 @@ export default function BudgetWizard({
 
       {showCloseConfirm && (
         <>
-          <div className="fixed inset-0 z-60 bg-black/50" aria-hidden="true" />
+          <div className="fixed inset-0 z-[60] bg-black/50" aria-hidden="true" />
           <div
             role="alertdialog"
             aria-modal="true"
