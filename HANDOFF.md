@@ -64,6 +64,7 @@ Phase 1 is the multi-tenant security spine: identity, auth, RLS, admin dashboard
 ### File inventory
 
 ```
+PLAN.html                                     — original project plan document (HTML)
 .env.example                                  — required env vars
 .gitignore                                    — patched to keep .env.example
 .npmrc                                        — pins this project to the public npm registry
@@ -75,6 +76,8 @@ lib/supabase/server.ts                        — createSupabaseServerClient (ge
 lib/supabase/client.ts                        — createBrowserClient
 lib/supabase/proxy.ts                         — updateSession() helper for proxy.ts
 lib/audit.ts                                  — logAudit() helper
+lib/require-admin.ts                          — defense-in-depth admin gate (called at top of every /admin page)
+lib/safe-next.ts                              — sanitises ?next= redirect URLs (open-redirect prevention)
 
 app/layout.tsx                                — root (Geist fonts, base 18px)
 app/globals.css                               — base font-size + tap-target minimum
@@ -91,7 +94,8 @@ app/(app)/goals/page.tsx                      — Phase 2 stub
 app/(app)/net-worth/page.tsx                  — Phase 2 stub
 app/(app)/settings/page.tsx                   — shows email + sign-out form
 app/(app)/join/page.tsx                       — invite redemption (server-side)
-app/(app)/join/actions.ts                     — redeemInvite (single-use, service-role insert)
+app/(app)/join/join-form.tsx                  — client form component for accepting an invite
+app/(app)/join/actions.ts                     — redeemInvite (single-use, calls redeem_invite RPC)
 
 app/(admin)/admin/layout.tsx                  — is_admin gate + tab nav
 app/(admin)/admin/page.tsx                    — redirect("/admin/households")
@@ -158,9 +162,12 @@ Once those are settled, Phase 2 ships these files (per the plan):
 - **`cookies()` is fully async in Next 16.** All server code awaits it.
 - **`@supabase/ssr` cookie shape:** use `getAll`/`setAll` (the `get`/`set`/`remove` triple is deprecated). Note that `setAll` now takes a second `headers` argument for cache-control headers — we don't currently set it because Next's response is already non-cached for dynamic routes.
 - **Sign-in audit is logged inline in `/auth/callback`,** not via the Supabase Auth webhook. Supabase doesn't expose a clean "after sign-in" hook; the callback is the moment we know who signed in, and it's guaranteed to fire on a successful magic-link exchange. The webhook handler exists as a stub for future events (e.g. user deletion).
-- **Invite redemption uses the service-role client** because the redeemer isn't yet a member of the household, so RLS would block their `INSERT` into `household_members`. The action validates the invite token (hash compare, expiry, consumed-at) before inserting.
+- **Invite redemption calls `redeem_invite` RPC with the user-session client, not service-role.** The RPC is `SECURITY DEFINER` and reads `auth.uid()` from the JWT GUC. Using the service-role client would set `auth.uid()` to null and the function would reject every redemption. The RPC itself handles race safety, email binding, expiry, and the `household_members` insert atomically.
 - **`household_members` write policy is admin-only.** All non-admin writes happen via service-role server actions (invite redemption, admin "remove member"). This is intentional — a user shouldn't be able to add themselves to an arbitrary household just because they hold an `auth.uid()`.
 - **`profiles.is_admin` is pinned in the update policy's `WITH CHECK`** so users can't promote themselves via direct table writes; only the service-role admin client can flip the flag.
 - **`(app)` group has no `page.tsx`.** The root `app/page.tsx` redirects to `/budget` inside the group. If you ever add `app/(app)/page.tsx` it'll conflict with the root.
 - **`npm run build` triggers a fetch error during page-data collection** when env vars point at a non-existent Supabase host. This doesn't fail the build — all routes get marked ƒ (dynamic) because they `cookies()`. With real env vars in prod, no error.
 - **Project `.npmrc`** pins this directory to the public npmjs.org registry. Original session's machine had a corporate registry global config that broke installs; the project-level override insulates this repo.
+- **`safeNext()` blocks open redirect on `?next=` parameters.** Any user-controlled `next` value (e.g. the post-login redirect in `/login?next=…`) is validated against an allowlist regex before use. Anything that fails — `//evil.com`, `/%2f%2f…`, absolute URLs, CR/LF injection — falls back to `/`. Lives in `lib/safe-next.ts`.
+- **`requireAdminOrRedirect()` is a defense-in-depth admin gate.** Every `/admin/*` page calls it at the top of the RSC, in addition to the shared `(admin)/admin/layout.tsx` check. A future regression in the layout won't silently expose admin data. Lives in `lib/require-admin.ts`.
+- **`removeMember` is atomic via a Postgres RPC** (`remove_member`) to avoid a TOCTOU race. A naïve app-side "count owners, then delete" is racy when two admins remove two different owners of the same household concurrently — both pass the count, both delete, household ends up ownerless. The RPC does the last-owner check and delete in a single transaction and raises a constraint violation (`23514`) if it would orphan the household.
