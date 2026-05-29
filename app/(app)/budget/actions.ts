@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth";
+import { MAX_AMOUNT_CENTS } from "@/lib/money";
 import { logAudit } from "@/lib/audit";
 
 type ActualEntry = {
@@ -16,7 +17,6 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const MAX_ENTRIES = 100;
-const MAX_AMOUNT_CENTS = 100_000_000; // $1,000,000 — generous ceiling, sanity bound.
 
 export async function saveCategoryActuals(
   householdId: string,
@@ -60,10 +60,7 @@ export async function saveCategoryActuals(
     }
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerUser();
   if (!user) return { ok: false, message: "Not signed in." };
 
   if (!entries.length) return { ok: true };

@@ -1,25 +1,10 @@
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth";
+import { lastMonth, monthLabel } from "@/lib/dates";
 import { EntryWizard } from "./entry-wizard";
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-// The most-recent past month (never the current month, which is still in progress).
-function lastMonth(): { year: number; month: number } {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return { year: d.getFullYear(), month: d.getMonth() + 1 };
-}
-
 export default async function BudgetPage() {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerUser();
   if (!user) return null;
 
   // Resolve the user's household (earliest membership by join date for a
@@ -56,7 +41,7 @@ export default async function BudgetPage() {
     .order("display_order", { ascending: true });
 
   const { year: lastYear, month: lastMo } = lastMonth();
-  const lastMonthLabel = `${MONTH_NAMES[lastMo - 1]} ${lastYear}`;
+  const lastMonthLabel = monthLabel(lastYear, lastMo);
 
   // Check if last month has any actuals.
   const { count: lastMonthCount } = await supabase

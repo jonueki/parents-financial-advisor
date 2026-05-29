@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth";
 
 const TABS = [
   { href: "/budget", label: "Budget" },
@@ -10,10 +10,7 @@ const TABS = [
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getServerUser();
 
   if (!user) {
     // Proxy already handles unauthenticated redirects with ?next=; this

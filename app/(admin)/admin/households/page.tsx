@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAdminOrRedirect } from "@/lib/require-admin";
+import { ErrorNotice } from "@/components/error-notice";
+import { SubmitButton } from "@/components/submit-button";
 import { removeMember } from "../actions";
 
 type MemberRow = {
@@ -28,7 +30,7 @@ export default async function HouseholdsTab() {
     .returns<HouseholdRow[]>();
 
   if (error) {
-    return <p className="text-red-700">Error: {error.message}</p>;
+    return <ErrorNotice message={error.message} />;
   }
 
   return (
@@ -63,12 +65,7 @@ export default async function HouseholdsTab() {
                     await removeMember(h.id, m.profile_id);
                   }}
                 >
-                  <button
-                    type="submit"
-                    className="rounded border border-neutral-300 px-3 py-2 text-sm hover:bg-neutral-100"
-                  >
-                    Remove
-                  </button>
+                  <SubmitButton variant="neutral">Remove</SubmitButton>
                 </form>
               </li>
             ))}
