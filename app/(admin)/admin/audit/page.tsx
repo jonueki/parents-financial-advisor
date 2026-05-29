@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAdminOrRedirect } from "@/lib/require-admin";
+import { ErrorNotice } from "@/components/error-notice";
 
 type AuditRow = {
   id: string;
@@ -28,7 +29,7 @@ export default async function AuditTab() {
     .returns<AuditRow[]>();
 
   if (error) {
-    return <p className="text-red-700">Error: {error.message}</p>;
+    return <ErrorNotice message={error.message} />;
   }
 
   return (

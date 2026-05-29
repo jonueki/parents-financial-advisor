@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireAdminOrRedirect } from "@/lib/require-admin";
+import { ErrorNotice } from "@/components/error-notice";
+import { SubmitButton } from "@/components/submit-button";
 import { revokeInvite } from "../actions";
 
 type InviteRow = {
@@ -21,7 +23,7 @@ export default async function InvitesTab() {
     .returns<InviteRow[]>();
 
   if (error) {
-    return <p className="text-red-700">Error: {error.message}</p>;
+    return <ErrorNotice message={error.message} />;
   }
 
   return (
@@ -58,12 +60,7 @@ export default async function InvitesTab() {
                     await revokeInvite(inv.id);
                   }}
                 >
-                  <button
-                    type="submit"
-                    className="rounded border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50"
-                  >
-                    Revoke
-                  </button>
+                  <SubmitButton variant="danger">Revoke</SubmitButton>
                 </form>
               )}
             </li>

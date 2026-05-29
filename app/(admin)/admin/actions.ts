@@ -1,26 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { assertAdmin } from "@/lib/require-admin";
 import { logAudit } from "@/lib/audit";
 
-async function requireAdmin() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.is_admin) throw new Error("Not authorized");
-}
-
 export async function revokeUserSessions(targetUserId: string) {
-  await requireAdmin();
+  await assertAdmin();
   const admin = createSupabaseAdminClient();
   const { error } = await admin.auth.admin.signOut(targetUserId, "global");
   if (error) throw error;
@@ -35,7 +21,7 @@ export async function revokeUserSessions(targetUserId: string) {
 }
 
 export async function revokeInvite(inviteId: string) {
-  await requireAdmin();
+  await assertAdmin();
   const admin = createSupabaseAdminClient();
 
   const { data: invite } = await admin
@@ -61,7 +47,7 @@ export async function revokeInvite(inviteId: string) {
 }
 
 export async function removeMember(householdId: string, profileId: string) {
-  await requireAdmin();
+  await assertAdmin();
   const admin = createSupabaseAdminClient();
 
   // Atomic last-owner check + delete via remove_member RPC. Doing this in

@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 
 // Invite tokens are stored hashed (SHA-256). For this to be brute-resistant
@@ -27,10 +27,7 @@ export async function redeemInvite(formData: FormData): Promise<RedeemResult> {
   // RPC. The function is SECURITY DEFINER but reads auth.uid() from the JWT
   // GUC, so we cannot use the service-role client here — auth.uid() would
   // be null and the function would reject.
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerUser();
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(`/join?token=${token}`)}`);
   }

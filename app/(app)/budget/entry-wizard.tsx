@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { formatDollars, formatInputDisplay, parseDollarInput } from "@/lib/money";
+import { monthLabel } from "@/lib/dates";
 import { saveCategoryActuals } from "./actions";
 
 type Category = {
@@ -22,36 +24,6 @@ type Props = {
   existingActuals: ExistingActual[];
 };
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function formatDollars(cents: number): string {
-  return "$" + Math.round(cents / 100).toLocaleString("en-US");
-}
-
-// Strict whole-dollar parser: rejects "$123abc" and other trailing junk
-// (which `parseInt` would silently truncate). The 999,999 cap is an
-// arbitrary v1 sanity bound to flag obviously-mistyped numbers.
-function parseDollarInput(raw: string): number | null {
-  const cleaned = raw.replace(/[$,\s]/g, "");
-  if (cleaned === "") return null;
-  if (!/^[0-9]+$/.test(cleaned)) return null;
-  const n = parseInt(cleaned, 10);
-  if (!Number.isFinite(n) || n < 0 || n > 999999) return null;
-  return n * 100;
-}
-
-function formatInputDisplay(raw: string): string {
-  const cleaned = raw.replace(/[$,\s]/g, "");
-  if (cleaned === "") return "";
-  if (!/^[0-9]+$/.test(cleaned)) return raw;
-  const n = parseInt(cleaned, 10);
-  if (!Number.isFinite(n)) return raw;
-  return "$" + n.toLocaleString("en-US");
-}
-
 type StepValues = Record<string, string>; // categoryId -> raw input string | "skip"
 
 const SKIP = "__skip__";
@@ -62,8 +34,7 @@ const SKIP = "__skip__";
 function buildInitialValues(existing: ExistingActual[]): StepValues {
   const prefilled: StepValues = {};
   for (const actual of existing) {
-    const dollars = Math.round(actual.amount_cents / 100);
-    prefilled[actual.category_id] = "$" + dollars.toLocaleString("en-US");
+    prefilled[actual.category_id] = formatDollars(actual.amount_cents);
   }
   return prefilled;
 }
@@ -170,7 +141,7 @@ export function EntryWizard({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const monthLabel = `${MONTH_NAMES[defaultMonth - 1]} ${defaultYear}`;
+  const label = monthLabel(defaultYear, defaultMonth);
 
   return (
     <>
@@ -254,7 +225,7 @@ export function EntryWizard({
                       htmlFor="amount-input"
                       className="mb-2 block text-base font-medium"
                     >
-                      About how much did you spend in {monthLabel}?
+                      About how much did you spend in {label}?
                     </label>
                     {isSkipped ? (
                       <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
@@ -324,7 +295,7 @@ export function EntryWizard({
             {step === summaryStep && (
               <>
                 <h2 className="text-2xl font-semibold">Review your entries</h2>
-                <p className="text-base text-neutral-600">{monthLabel}</p>
+                <p className="text-base text-neutral-600">{label}</p>
 
                 <table className="w-full text-base">
                   <thead>
