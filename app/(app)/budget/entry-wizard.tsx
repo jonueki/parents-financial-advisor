@@ -34,8 +34,7 @@ const SKIP = "__skip__";
 function buildInitialValues(existing: ExistingActual[]): StepValues {
   const prefilled: StepValues = {};
   for (const actual of existing) {
-    const dollars = Math.round(actual.amount_cents / 100);
-    prefilled[actual.category_id] = "$" + dollars.toLocaleString("en-US");
+    prefilled[actual.category_id] = formatDollars(actual.amount_cents);
   }
   return prefilled;
 }
